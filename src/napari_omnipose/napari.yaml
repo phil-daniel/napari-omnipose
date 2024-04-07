@@ -21,6 +21,9 @@ contributions:
     - id: napari-omnipose.segment_image
       python_name: napari_omnipose:segment_image
       title: Segment Image
+    - id: napari-omnipose.bounding_box_widget
+      python_name: napari_omnipose:bounding_box_widget
+      title: Show bounding boxes
   readers:
     - command: napari-omnipose.get_reader
       accepts_directories: false
@@ -39,3 +42,5 @@ contributions:
   widgets:
     - command: napari-omnipose.segment_image
       display_name: Segment Image
+    - command: napari-omnipose.bounding_box_widget
+      display_name: Show bounding boxes

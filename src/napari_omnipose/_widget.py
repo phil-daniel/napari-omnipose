@@ -27,6 +27,35 @@ def make_bounding_box(coords):
     box = np.moveaxis(box, 2, 0)
     return box
 
+def adding_bounding_boxes(viewer: Viewer, segmentation_mask) -> None:
+    label_image = segmentation_mask
+
+    properties = regionprops_table(
+        label_image, properties = ('label', 'bbox', 'perimeter', 'area')
+    )
+    boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
+    viewer.add_shapes(
+        boxes,
+        face_color='transparent',
+        edge_color='yellow',
+        edge_width=2,
+        properties=properties,
+        name='bounding box',
+    )
+
+@magic_factory(
+)
+def bounding_box_widget(
+    seg_layer: "napari.layers.Labels",
+    viewer: Viewer
+) -> "None":
+    if seg_layer == None:
+        show_warning("No label layer selected.")
+        return None
+    adding_bounding_boxes(viewer, seg_layer.data)
+    return None
+
+
 @magic_factory(
     model = dict(widget_type='ComboBox', label='Model', choices=['nuclei', 'cyto', 'cyto2', 'cyto3'], value='nuclei'),
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
@@ -57,19 +86,6 @@ def segment_image(
     #    count_layer = viewer.
 
     if show_bounding_box:
-        label_image = masks
-
-        properties = regionprops_table(
-            label_image, properties=('label', 'bbox', 'perimeter', 'area')
-        )
-        bbox_rects = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
-        shapes_layer = viewer.add_shapes(
-            bbox_rects,
-            face_color='transparent',
-            edge_color='green',
-            properties=properties,
-            name='bounding box',
-        )
-
+        adding_bounding_boxes(viewer, masks)
 
     return masks
