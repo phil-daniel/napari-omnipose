@@ -27,12 +27,19 @@ def make_bounding_box(coords):
     box = np.moveaxis(box, 2, 0)
     return box
 
-def adding_bounding_boxes(viewer: Viewer, segmentation_mask) -> None:
+def add_labelling(viewer: Viewer, segmentation_mask) -> None:
     label_image = segmentation_mask
 
     properties = regionprops_table(
         label_image, properties = ('label', 'bbox', 'perimeter', 'area')
     )
+    text_parameters = {
+        'string': '{label}',
+        'size': 12,
+        'color': 'green',
+        'anchor': 'upper_left',
+        'translation': [-3, 0],
+    }
     boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
     viewer.add_shapes(
         boxes,
@@ -40,19 +47,21 @@ def adding_bounding_boxes(viewer: Viewer, segmentation_mask) -> None:
         edge_color='yellow',
         edge_width=2,
         properties=properties,
+        text=text_parameters,
         name='Bounding boxes',
     )
+    return
 
 @magic_factory(
 )
-def bounding_box_widget(
+def label_segmentation(
     seg_layer: "napari.layers.Labels",
     viewer: Viewer
 ) -> "None":
     if seg_layer == None:
         show_warning("No label layer selected.")
         return None
-    adding_bounding_boxes(viewer, seg_layer.data)
+    add_labelling(viewer, seg_layer.data)
     return None
 
 
@@ -82,8 +91,8 @@ def segment_image(
     print(str(np.max(masks))  + " objects identified.")
     show_info(str(np.max(masks)) + " objects identified.")
 
-    #if show_cell_count:
-    #    count_layer = viewer.
+    if show_cell_count:
+        adding_cell_counter(viewer, masks)
 
     if show_bounding_box:
         adding_bounding_boxes(viewer, masks)
