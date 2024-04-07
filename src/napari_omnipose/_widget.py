@@ -40,18 +40,22 @@ def adding_bounding_boxes(viewer: Viewer, segmentation_mask) -> None:
         edge_color='yellow',
         edge_width=2,
         properties=properties,
-        name='bounding box',
+        #name='Bounding boxes',
     )
 
 @magic_factory(
+    clear_layer = dict(widget_type="CheckBox", text="Clear layer first", value=False), 
 )
 def bounding_box_widget(
     seg_layer: "napari.layers.Labels",
+    clear_layer,
     viewer: Viewer
 ) -> "None":
     if seg_layer == None:
         show_warning("No label layer selected.")
         return None
+    if clear_layer:
+        viewer.layers["Labels"].data = []
     adding_bounding_boxes(viewer, seg_layer.data)
     return None
 
@@ -71,7 +75,7 @@ def segment_image(
     viewer: Viewer
 ) -> "napari.types.LabelsData":
     from cellpose import models
-
+    print (viewer.layers)
     if img_layer == None:
         show_warning("No image layer selected.")
         return None
