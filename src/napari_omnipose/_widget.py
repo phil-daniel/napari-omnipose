@@ -8,7 +8,7 @@ from skimage.measure import label, regionprops_table
 
 
 from napari.utils.notifications import show_warning, show_info
-from napari import view_image
+from napari import Viewer
 
 import numpy as np
 
@@ -39,6 +39,7 @@ def segment_image(
     diameter,
     show_bounding_box,
     show_cell_count,
+    viewer: Viewer
 ) -> "napari.types.LabelsData":
     from cellpose import models
 
@@ -56,8 +57,8 @@ def segment_image(
     #    count_layer = viewer.
 
     if show_bounding_box:
-        viewer = view_image()
-        # create the properties dictionary
+        label_image = masks
+
         properties = regionprops_table(
             label_image, properties=('label', 'bbox', 'perimeter', 'area')
         )
@@ -67,7 +68,6 @@ def segment_image(
             face_color='transparent',
             edge_color='green',
             properties=properties,
-            text=text_parameters,
             name='bounding box',
         )
 
