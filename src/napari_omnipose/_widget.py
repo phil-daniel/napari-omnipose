@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
-from skimage.util import img_as_float
 from skimage.measure import label, regionprops_table
 
 
@@ -34,31 +33,30 @@ def add_labelling(
     cell_count: bool,
     display_area: bool,
 ) -> None:
-    label_image = segmentation_mask
     properties = regionprops_table(
-        label_image, properties = ('label', 'bbox', 'perimeter', 'area')
+        segmentation_mask,
+        properties = ('label', 'bbox', 'perimeter', 'area'),
     )
+    boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
     labelText = []
     if cell_count:
         labelText.append("{label}")
     if display_area:
         labelText.append("Area: {area}")
-    text_parameters = {
-        'string': "\n".join(labelText),
-        'size': 10,
-        'color': 'yellow',
-        'anchor': 'upper_left',
-        'translation': [-3, 0],
-    }
-    boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
     viewer.add_shapes(
         boxes,
         face_color = 'transparent',
         edge_color = 'yellow',
         edge_width = 2 if bounding_box else 0,
         properties = properties,
-        text = text_parameters,
-        name='Bounding boxes',
+        text = {
+            'string': "\n".join(labelText),
+            'size': 10,
+            'color': 'yellow',
+            'anchor': 'upper_left',
+            'translation': [-3, 0],
+        },
+        name='Segmentation Labelling',
     )
     return
 
@@ -95,7 +93,7 @@ def segment_image(
     show_bounding_box,
     show_cell_count,
     show_area,
-    viewer: Viewer
+    viewer: Viewer,
 ) -> "napari.types.LabelsData":
     from cellpose import models
     print (viewer.layers)
@@ -104,9 +102,8 @@ def segment_image(
         return None
     img = img_layer.data
     masks, flows, styles = models.CellposeModel(model_type=model).eval(img,
-                            diameter=diameter, channels=[1,2])
-    # Gives number of cells identified
-    print(str(np.max(masks))  + " objects identified.")
+                            diameter=diameter,
+                            channels=[1,2],)
     show_info(str(np.max(masks)) + " objects identified.")
     if show_bounding_box or show_cell_count:
         add_labelling(viewer, masks, show_bounding_box, show_cell_count, show_area)
