@@ -1,0 +1,4 @@
+napari
+cellpose
+numpy
+magicgui

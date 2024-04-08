@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
-from skimage.measure import label, regionprops_table
+from skimage.measure import regionprops_table
 
 
 from napari.utils.notifications import show_warning, show_info
