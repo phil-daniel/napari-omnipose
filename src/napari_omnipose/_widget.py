@@ -27,32 +27,53 @@ def make_bounding_box(coords):
     box = np.moveaxis(box, 2, 0)
     return box
 
-def adding_bounding_boxes(viewer: Viewer, segmentation_mask) -> None:
-    label_image = segmentation_mask
+def add_labelling(
+    viewer: Viewer,
+    segmentation_mask,
+    bounding_box: bool,
+    cell_count: bool,
+) -> None:
+    labelText = ""
+    if cell_count:
+        labelText += "{label}"
 
+    label_image = segmentation_mask
     properties = regionprops_table(
         label_image, properties = ('label', 'bbox', 'perimeter', 'area')
     )
+    text_parameters = {
+        'string': labelText,
+        'size': 12,
+        'color': 'green',
+        'anchor': 'upper_left',
+        'translation': [-3, 0],
+    }
     boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
     viewer.add_shapes(
         boxes,
-        face_color='transparent',
-        edge_color='yellow',
-        edge_width=2,
-        properties=properties,
-        name='bounding box',
+        face_color = 'transparent',
+        edge_color = 'yellow',
+        edge_width = 2 if bounding_box else 0,
+        properties = properties,
+        text = text_parameters,
+        name='Bounding boxes',
     )
+    return
 
 @magic_factory(
+    show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
+    show_cell_count = dict(widget_type="CheckBox", text="Show Cell Count", value= False),
 )
-def bounding_box_widget(
+def label_segmentation(
     seg_layer: "napari.layers.Labels",
+    show_bounding_box,
+    show_cell_count,
     viewer: Viewer
 ) -> "None":
     if seg_layer == None:
         show_warning("No label layer selected.")
         return None
-    adding_bounding_boxes(viewer, seg_layer.data)
+    add_labelling(viewer, seg_layer.data, show_bounding_box, show_cell_count)
     return None
 
 
@@ -71,7 +92,7 @@ def segment_image(
     viewer: Viewer
 ) -> "napari.types.LabelsData":
     from cellpose import models
-
+    print (viewer.layers)
     if img_layer == None:
         show_warning("No image layer selected.")
         return None
@@ -81,11 +102,7 @@ def segment_image(
     # Gives number of cells identified
     print(str(np.max(masks))  + " objects identified.")
     show_info(str(np.max(masks)) + " objects identified.")
-
-    #if show_cell_count:
-    #    count_layer = viewer.
-
-    if show_bounding_box:
-        adding_bounding_boxes(viewer, masks)
+    if show_bounding_box or show_cell_count:
+        add_labelling(viewer, masks, show_bounding_box, show_cell_count)
 
     return masks
