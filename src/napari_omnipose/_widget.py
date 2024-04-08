@@ -38,15 +38,15 @@ def add_labelling(
     properties = regionprops_table(
         label_image, properties = ('label', 'bbox', 'perimeter', 'area')
     )
-    labelText = ""
+    labelText = []
     if cell_count:
-        labelText += "{label}"
+        labelText.append("{label}")
     if display_area:
-        labelText += "\nArea: {area}"
+        labelText.append("Area: {area}")
     text_parameters = {
-        'string': labelText,
+        'string': "\n".join(labelText),
         'size': 10,
-        'color': 'green',
+        'color': 'yellow',
         'anchor': 'upper_left',
         'translation': [-3, 0],
     }
