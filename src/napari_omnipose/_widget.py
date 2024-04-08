@@ -32,18 +32,20 @@ def add_labelling(
     segmentation_mask,
     bounding_box: bool,
     cell_count: bool,
+    display_area: bool,
 ) -> None:
-    labelText = ""
-    if cell_count:
-        labelText += "{label}"
-
     label_image = segmentation_mask
     properties = regionprops_table(
         label_image, properties = ('label', 'bbox', 'perimeter', 'area')
     )
+    labelText = ""
+    if cell_count:
+        labelText += "{label}"
+    if display_area:
+        labelText += "\nArea: {area}"
     text_parameters = {
         'string': labelText,
-        'size': 12,
+        'size': 10,
         'color': 'green',
         'anchor': 'upper_left',
         'translation': [-3, 0],
@@ -63,17 +65,19 @@ def add_labelling(
 @magic_factory(
     show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
     show_cell_count = dict(widget_type="CheckBox", text="Show Cell Count", value= False),
+    show_area = dict(widget_type="CheckBox", text="Show Cell Area", value=False),
 )
 def label_segmentation(
     seg_layer: "napari.layers.Labels",
     show_bounding_box,
     show_cell_count,
-    viewer: Viewer
+    show_area,
+    viewer: Viewer,
 ) -> "None":
     if seg_layer == None:
         show_warning("No label layer selected.")
         return None
-    add_labelling(viewer, seg_layer.data, show_bounding_box, show_cell_count)
+    add_labelling(viewer, seg_layer.data, show_bounding_box, show_cell_count, show_area)
     return None
 
 
@@ -82,6 +86,7 @@ def label_segmentation(
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
     show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
     show_cell_count = dict(widget_type="CheckBox", text="Show Cell Count", value=False),
+    show_area = dict(widget_type="CheckBox", text="Show Cell Area", value=False),
 )
 def segment_image(
     img_layer: "napari.layers.Image",
@@ -89,6 +94,7 @@ def segment_image(
     diameter,
     show_bounding_box,
     show_cell_count,
+    show_area,
     viewer: Viewer
 ) -> "napari.types.LabelsData":
     from cellpose import models
@@ -103,6 +109,6 @@ def segment_image(
     print(str(np.max(masks))  + " objects identified.")
     show_info(str(np.max(masks)) + " objects identified.")
     if show_bounding_box or show_cell_count:
-        add_labelling(viewer, masks, show_bounding_box, show_cell_count)
+        add_labelling(viewer, masks, show_bounding_box, show_cell_count, show_area)
 
     return masks
