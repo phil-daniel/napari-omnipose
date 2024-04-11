@@ -21,7 +21,12 @@ def make_bounding_box(coords):
     maxc = coords[3]
 
     box = np.array(
-        [[minr, minc], [maxr, minc], [maxr, maxc], [minr, maxc]]
+        [
+            [minr, minc],
+            [maxr, minc],
+            [maxr, maxc],
+            [minr, maxc]
+        ]
     )
     box = np.moveaxis(box, 2, 0)
     return box
@@ -80,7 +85,7 @@ def label_segmentation(
 
 
 @magic_factory(
-    model = dict(widget_type='ComboBox', label='Model', choices=['nuclei', 'cyto', 'cyto2', 'cyto3'], value='nuclei'),
+    model = dict(widget_type='ComboBox', label='Model', choices=['bact_phase_omni', 'bact_fluor_omni', 'nuclei', 'cyto', 'cyto2'], value='bact_phase_omni'),
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
     show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
     show_cell_count = dict(widget_type="CheckBox", text="Show Cell Count", value=False),
@@ -95,15 +100,16 @@ def segment_image(
     show_area,
     viewer: Viewer,
 ) -> "napari.types.LabelsData":
-    from cellpose import models
-    print (viewer.layers)
+    from cellpose_omni import models
+    print (models)
     if img_layer == None:
         show_warning("No image layer selected.")
         return None
     img = img_layer.data
-    masks, flows, styles = models.CellposeModel(model_type=model).eval(img,
+    masks, flows, styles = models.CellposeModel(model_type=model).eval([img],
                             diameter=diameter,
-                            channels=[1,2],)
+                            channels=[1,2],
+                            omni=True)
     show_info(str(np.max(masks)) + " objects identified.")
     if show_bounding_box or show_cell_count:
         add_labelling(viewer, masks, show_bounding_box, show_cell_count, show_area)
