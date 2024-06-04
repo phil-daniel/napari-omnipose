@@ -14,6 +14,8 @@ import numpy as np
 if TYPE_CHECKING:
     import napari
 
+import napari
+
 def make_bounding_box(coords):
     minr = coords[0]
     minc = coords[1]
@@ -64,6 +66,24 @@ def add_labelling(
         name='Segmentation Labelling',
     )
     return
+
+@magic_factory(
+)
+def remove_segmented_object(
+    seg_layer: "napari.layers.Labels",
+    int_value: int
+) -> "napari.layers.Labels":
+    if seg_layer == None:
+        show_warning("No label layer selected.")
+        return None
+    newData = np.copy(seg_layer.data)
+    for x in np.nditer(newData, op_flags=['readwrite']):
+        if x == int_value:
+            x[...] = 0
+        elif x > int_value:
+            x[...] = x - 1
+    seg_layer.visible = False
+    return napari.layers.Labels(newData)
 
 @magic_factory(
     show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
