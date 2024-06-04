@@ -30,8 +30,26 @@ def make_bounding_box(coords):
             [minr, maxc]
         ]
     )
+    print(box)
     box = np.moveaxis(box, 2, 0)
+    print(box)
     return box
+
+@magic_factory(
+)
+def measure_masks(
+    mask: "napari.layers.Labels",
+) -> None:
+    properties = regionprops_table(
+        mask.data,
+        properties = {'bbox'}
+    )
+    boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
+    for i, x in enumerate(boxes):
+        # looking for i+1
+    
+    return
+
 
 def add_labelling(
     viewer: Viewer,
@@ -52,6 +70,7 @@ def add_labelling(
         labelText.append("Area: {area}")
     viewer.add_shapes(
         boxes,
+        shape_type = 'rectangle',
         face_color = 'transparent',
         edge_color = 'yellow',
         edge_width = 2 if bounding_box else 0,

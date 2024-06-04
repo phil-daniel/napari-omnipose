@@ -27,6 +27,9 @@ contributions:
     - id: napari-omnipose.remove_segmented_object
       python_name: napari_omnipose:remove_segmented_object
       title: Remove Segmented Object
+    - id: napari-omnipose.measure_masks
+      python_name: napari_omnipose:measure_masks
+      title: Measure Masks
   readers:
     - command: napari-omnipose.get_reader
       accepts_directories: false
@@ -49,3 +52,5 @@ contributions:
       display_name: Label segmentation
     - command: napari-omnipose.remove_segmented_object
       display_name: Remove Segmented Object
+    - command: napari-omnipose.measure_masks
+      display_name: Measure Masks
