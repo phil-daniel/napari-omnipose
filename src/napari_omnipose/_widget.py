@@ -110,8 +110,8 @@ def segment_image(
                             diameter=diameter,
                             channels=[1,2],
                             omni=True)
-    show_info(str(np.max(masks)) + " objects identified.")
+    show_info(str(np.max(masks[0])) + " objects identified.")
     if show_bounding_box or show_cell_count:
-        add_labelling(viewer, masks, show_bounding_box, show_cell_count, show_area)
+        add_labelling(viewer, masks[0], show_bounding_box, show_cell_count, show_area)
 
     return masks
