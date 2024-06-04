@@ -77,11 +77,9 @@ def remove_segmented_object(
         show_warning("No label layer selected.")
         return None
     newData = np.copy(seg_layer.data)
-    for x in np.nditer(newData, op_flags=['readwrite']):
-        if x == int_value:
-            x[...] = 0
-        elif x > int_value:
-            x[...] = x - 1
+    newData[newData == int_value] = 0
+    if np.max(newData) > int_value:
+        newData[newData == np.max(newData)] = int_value
     seg_layer.visible = False
     return napari.layers.Labels(newData)
 
