@@ -4,6 +4,7 @@ from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.measure import regionprops_table
+from skimage.segmentation import expand_labels
 
 
 from napari.utils.notifications import show_warning, show_info
@@ -92,18 +93,33 @@ def add_labelling(
 def calculate_intensity(
     seg_layer: "napari.layers.Labels",
     img_layer: "napari.layers.Image",
-) -> None:
+    min_dist: int = 5,
+    max_dist: int = 10,
+) -> napari.layers.Labels:
     # todo
-    # calculate individual fluoresnce for each object
-    # enlarge mask
-    # calculate surrounding background for each
     # subtract background from indiviudal calc
-    properties = regionprops_table(
-        seg_layer.data,
+    if min_dist >=  max_dist:
+        show_warning("Minimum distance is greater or equal to maximum distance")
+        return None
+    cell_intensity = regionprops_table(
+        label_image = seg_layer.data,
+        intensity_image = img_layer.data,
         properties = {'label', 'area', 'intensity_mean'}
     )
-    print(properties)
-    return
+    background = np.subtract(expand_labels(seg_layer.data, max_dist), expand_labels(seg_layer.data, min_dist))
+    background_intensity = regionprops_table(
+        label_image = background,
+        intensity_image = img_layer.data,
+        properties = {'label', 'intensity_mean'}
+    )
+    background_dict = {}
+    for i in range(len(background_intensity['label'])):
+        background_dict[background_intensity['label'][i]] = background_intensity['intensity_mean'][i]
+    for i in range(len(cell_intensity['label'])):
+        if background_dict.get(cell_intensity['label'][i]):
+            cell_intensity['intensity_mean'][i] -= background_dict[cell_intensity['label'][i]]
+    print (cell_intensity)
+    return napari.layers.Labels(data = background, name = "Background intensity areas")
 
 @magic_factory(
 )
