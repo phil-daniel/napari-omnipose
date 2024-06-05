@@ -125,15 +125,17 @@ def calculate_intensity(
 )
 def remove_segmented_object(
     seg_layer: "napari.layers.Labels",
-    int_value: int
+    int_value: list[int]
 ) -> "napari.layers.Labels":
     if seg_layer == None:
         show_warning("No label layer selected.")
         return None
     newData = np.copy(seg_layer.data)
-    newData[newData == int_value] = 0
-    if np.max(newData) > int_value:
-        newData[newData == np.max(newData)] = int_value
+    int_value.sort(reverse = True)
+    for val in int_value:
+        newData[newData == val] = 0
+        if np.max(newData) != val:
+            newData[newData == np.max(newData)] = val
     seg_layer.visible = False
     return napari.layers.Labels(newData)
 
