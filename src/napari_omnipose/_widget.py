@@ -4,6 +4,7 @@ from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.measure import regionprops_table
+from skimage.segmentation import expand_labels
 
 
 from napari.utils.notifications import show_warning, show_info
@@ -13,6 +14,8 @@ import numpy as np
 
 if TYPE_CHECKING:
     import napari
+
+import napari
 
 def make_bounding_box(coords):
     minr = coords[0]
@@ -30,6 +33,23 @@ def make_bounding_box(coords):
     )
     box = np.moveaxis(box, 2, 0)
     return box
+
+@magic_factory(
+)
+def measure_masks(
+    mask: "napari.layers.Labels",
+) -> None:
+    properties = regionprops_table(
+        mask.data,
+        properties = {'bbox'}
+    )
+    boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
+    for i, x in enumerate(boxes):
+        items = np.where(mask == i+1)
+        # looking for i+1
+    
+    return
+
 
 def add_labelling(
     viewer: Viewer,
@@ -50,6 +70,7 @@ def add_labelling(
         labelText.append("Area: {area}")
     viewer.add_shapes(
         boxes,
+        shape_type = 'rectangle',
         face_color = 'transparent',
         edge_color = 'yellow',
         edge_width = 2 if bounding_box else 0,
@@ -64,6 +85,74 @@ def add_labelling(
         name='Segmentation Labelling',
     )
     return
+
+@magic_factory(
+)
+def calculate_intensity(
+    seg_layer: "napari.layers.Labels",
+    img_layer: "napari.layers.Image",
+    viewer: Viewer,
+    min_dist: int = 5,
+    max_dist: int = 10,
+) -> napari.layers.Labels:
+    if min_dist >=  max_dist:
+        show_warning("Minimum distance is greater or equal to maximum distance")
+        return None
+    cell_intensity = regionprops_table(
+        label_image = seg_layer.data,
+        intensity_image = img_layer.data,
+        properties = {'label', 'area', 'intensity_mean', 'bbox'}
+    )
+    background = np.subtract(expand_labels(seg_layer.data, max_dist), expand_labels(seg_layer.data, min_dist))
+    background_intensity = regionprops_table(
+        label_image = background,
+        intensity_image = img_layer.data,
+        properties = {'label', 'intensity_mean'}
+    )
+    background_dict = {}
+    for i in range(len(background_intensity['label'])):
+        background_dict[background_intensity['label'][i]] = background_intensity['intensity_mean'][i]
+    for i in range(len(cell_intensity['label'])):
+        if background_dict.get(cell_intensity['label'][i]):
+            cell_intensity['intensity_mean'][i] -= background_dict[cell_intensity['label'][i]]
+    # making shapes
+    boxes = make_bounding_box([cell_intensity[f'bbox-{i}'] for i in range(4)])
+    labelText = ["{label}", "Mean Intensity: {intensity_mean}"]
+    viewer.add_shapes(
+        boxes,
+        shape_type = 'rectangle',
+        face_color = 'transparent',
+        edge_color = 'green',
+        edge_width = 2,
+        properties = cell_intensity,
+        text = {
+            'string': "\n".join(labelText),
+            'size': 10,
+            'color': 'green',
+            'anchor': 'upper_left',
+            'translation': [-3, 0],
+        },
+        name='Intensity Labelling',
+    )
+    return napari.layers.Labels(data = background, name = "Background intensity areas")
+
+@magic_factory(
+)
+def remove_segmented_object(
+    seg_layer: "napari.layers.Labels",
+    int_value: list[int]
+) -> "napari.layers.Labels":
+    if seg_layer == None:
+        show_warning("No label layer selected.")
+        return None
+    newData = np.copy(seg_layer.data)
+    int_value.sort(reverse = True)
+    for val in int_value:
+        newData[newData == val] = 0
+        if np.max(newData) != val:
+            newData[newData == np.max(newData)] = val
+    seg_layer.visible = False
+    return napari.layers.Labels(newData)
 
 @magic_factory(
     show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
@@ -101,7 +190,6 @@ def segment_image(
     viewer: Viewer,
 ) -> "napari.types.LabelsData":
     from cellpose_omni import models
-    print (models)
     if img_layer == None:
         show_warning("No image layer selected.")
         return None
@@ -110,8 +198,8 @@ def segment_image(
                             diameter=diameter,
                             channels=[1,2],
                             omni=True)
-    show_info(str(np.max(masks)) + " objects identified.")
+    show_info(str(np.max(masks[0])) + " objects identified.")
     if show_bounding_box or show_cell_count:
-        add_labelling(viewer, masks, show_bounding_box, show_cell_count, show_area)
+        add_labelling(viewer, masks[0], show_bounding_box, show_cell_count, show_area)
 
     return masks
