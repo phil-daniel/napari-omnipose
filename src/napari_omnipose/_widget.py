@@ -31,9 +31,7 @@ def make_bounding_box(coords):
             [minr, maxc]
         ]
     )
-    print(box)
     box = np.moveaxis(box, 2, 0)
-    print(box)
     return box
 
 @magic_factory(
@@ -93,18 +91,17 @@ def add_labelling(
 def calculate_intensity(
     seg_layer: "napari.layers.Labels",
     img_layer: "napari.layers.Image",
+    viewer: Viewer,
     min_dist: int = 5,
     max_dist: int = 10,
 ) -> napari.layers.Labels:
-    # todo
-    # subtract background from indiviudal calc
     if min_dist >=  max_dist:
         show_warning("Minimum distance is greater or equal to maximum distance")
         return None
     cell_intensity = regionprops_table(
         label_image = seg_layer.data,
         intensity_image = img_layer.data,
-        properties = {'label', 'area', 'intensity_mean'}
+        properties = {'label', 'area', 'intensity_mean', 'bbox'}
     )
     background = np.subtract(expand_labels(seg_layer.data, max_dist), expand_labels(seg_layer.data, min_dist))
     background_intensity = regionprops_table(
@@ -118,7 +115,25 @@ def calculate_intensity(
     for i in range(len(cell_intensity['label'])):
         if background_dict.get(cell_intensity['label'][i]):
             cell_intensity['intensity_mean'][i] -= background_dict[cell_intensity['label'][i]]
-    print (cell_intensity)
+    # making shapes
+    boxes = make_bounding_box([cell_intensity[f'bbox-{i}'] for i in range(4)])
+    labelText = ["{label}", "Mean Intensity: {intensity_mean}"]
+    viewer.add_shapes(
+        boxes,
+        shape_type = 'rectangle',
+        face_color = 'transparent',
+        edge_color = 'green',
+        edge_width = 2,
+        properties = cell_intensity,
+        text = {
+            'string': "\n".join(labelText),
+            'size': 10,
+            'color': 'green',
+            'anchor': 'upper_left',
+            'translation': [-3, 0],
+        },
+        name='Intensity Labelling',
+    )
     return napari.layers.Labels(data = background, name = "Background intensity areas")
 
 @magic_factory(
