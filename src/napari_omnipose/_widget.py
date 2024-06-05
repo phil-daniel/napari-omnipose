@@ -46,6 +46,7 @@ def measure_masks(
     )
     boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
     for i, x in enumerate(boxes):
+        items = np.where(mask == i+1)
         # looking for i+1
     
     return
@@ -84,6 +85,24 @@ def add_labelling(
         },
         name='Segmentation Labelling',
     )
+    return
+
+@magic_factory(
+)
+def calculate_intensity(
+    seg_layer: "napari.layers.Labels",
+    img_layer: "napari.layers.Image",
+) -> None:
+    # todo
+    # calculate individual fluoresnce for each object
+    # enlarge mask
+    # calculate surrounding background for each
+    # subtract background from indiviudal calc
+    properties = regionprops_table(
+        seg_layer.data,
+        properties = {'label', 'area', 'intensity_mean'}
+    )
+    print(properties)
     return
 
 @magic_factory(
@@ -138,7 +157,6 @@ def segment_image(
     viewer: Viewer,
 ) -> "napari.types.LabelsData":
     from cellpose_omni import models
-    print (models)
     if img_layer == None:
         show_warning("No image layer selected.")
         return None

@@ -30,6 +30,9 @@ contributions:
     - id: napari-omnipose.measure_masks
       python_name: napari_omnipose:measure_masks
       title: Measure Masks
+    - id: napari-omnipose.calculate_intensity
+      python_name: napari_omnipose:calculate_intensity
+      title: Calculate Intensity
   readers:
     - command: napari-omnipose.get_reader
       accepts_directories: false
@@ -54,3 +57,5 @@ contributions:
       display_name: Remove Segmented Object
     - command: napari-omnipose.measure_masks
       display_name: Measure Masks
+    - command: napari-omnipose.calculate_intensity
+      display_name: Calculate Intensity
