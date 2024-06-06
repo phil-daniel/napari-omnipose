@@ -142,7 +142,7 @@ def calculate_intensity(
 def remove_segmented_object(
     seg_layer: "napari.layers.Labels",
     int_value: list[int]
-) -> "napari.layers.Labels":
+) -> None:
     if seg_layer == None:
         show_warning("No label layer selected.")
         return None
@@ -152,10 +152,8 @@ def remove_segmented_object(
         newData[newData == val] = 0
         if np.max(newData) != val:
             newData[newData == np.max(newData)] = val
-    #seg_layer.visible = False
-    #return napari.layers.Labels(newData)
     seg_layer.data = newData
-    return None
+    return
 
 @magic_factory(
     show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
