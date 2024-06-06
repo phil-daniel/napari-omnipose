@@ -5,6 +5,7 @@ from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.measure import regionprops_table
 from skimage.segmentation import expand_labels
+from skimage.morphology import skeletonize
 
 
 from napari.utils.notifications import show_warning, show_info
@@ -94,7 +95,7 @@ def calculate_intensity(
     viewer: Viewer,
     min_dist: int = 5,
     max_dist: int = 10,
-) -> napari.layers.Labels:
+) -> "napari.layers.Labels":
     if min_dist >=  max_dist:
         show_warning("Minimum distance is greater or equal to maximum distance")
         return None
@@ -151,8 +152,10 @@ def remove_segmented_object(
         newData[newData == val] = 0
         if np.max(newData) != val:
             newData[newData == np.max(newData)] = val
-    seg_layer.visible = False
-    return napari.layers.Labels(newData)
+    #seg_layer.visible = False
+    #return napari.layers.Labels(newData)
+    seg_layer.data = newData
+    return None
 
 @magic_factory(
     show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
@@ -161,11 +164,11 @@ def remove_segmented_object(
 )
 def label_segmentation(
     seg_layer: "napari.layers.Labels",
-    show_bounding_box,
-    show_cell_count,
-    show_area,
+    show_bounding_box: bool,
+    show_cell_count: bool,
+    show_area: bool,
     viewer: Viewer,
-) -> "None":
+) -> None:
     if seg_layer == None:
         show_warning("No label layer selected.")
         return None
@@ -199,7 +202,6 @@ def segment_image(
                             channels=[1,2],
                             omni=True)
     show_info(str(np.max(masks[0])) + " objects identified.")
-    if show_bounding_box or show_cell_count:
+    if show_bounding_box or show_cell_count or show_area:
         add_labelling(viewer, masks[0], show_bounding_box, show_cell_count, show_area)
-
     return masks
