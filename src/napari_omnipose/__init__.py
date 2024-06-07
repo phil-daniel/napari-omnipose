@@ -2,7 +2,7 @@ __version__ = "0.0.1"
 
 from ._reader import napari_get_reader
 from ._sample_data import make_sample_data
-from ._widget import segment_image, label_segmentation, remove_segmented_object, measure_masks, calculate_intensity
+from ._widget import segment_image, label_segmentation, remove_segmented_object, measure_masks, calculate_intensity, full_analysis
 from ._writer import write_multiple, write_single_image
 
 __all__ = (
@@ -15,4 +15,5 @@ __all__ = (
     "remove_segmented_object",
     "measure_masks",
     "calculate_intensity",
+    "full_analysis",
 )

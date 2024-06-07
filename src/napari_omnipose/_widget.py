@@ -6,6 +6,7 @@ from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.measure import regionprops_table
 from skimage.segmentation import expand_labels
 from skimage.morphology import skeletonize
+from skimage.io import imsave
 
 
 from napari.utils.notifications import show_warning, show_info
@@ -39,17 +40,17 @@ def make_bounding_box(coords):
 )
 def measure_masks(
     mask: "napari.layers.Labels",
-) -> None:
-    properties = regionprops_table(
+) -> "napari.layers.Labels":
+    '''properties = regionprops_table(
         mask.data,
         properties = {'bbox'}
     )
     boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
     for i, x in enumerate(boxes):
         items = np.where(mask == i+1)
-        # looking for i+1
-    
-    return
+        # looking for i+1'''
+    shrink = expand_labels(mask.data, -1)
+    return napari.layers.Labels(shrink)
 
 
 def add_labelling(
@@ -156,8 +157,8 @@ def remove_segmented_object(
     return
 
 @magic_factory(
-    show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
-    show_cell_count = dict(widget_type="CheckBox", text="Show Cell Count", value= False),
+    show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value=False),
+    show_cell_count = dict(widget_type="CheckBox", text="Show Cell Count", value=False),
     show_area = dict(widget_type="CheckBox", text="Show Cell Area", value=False),
 )
 def label_segmentation(
@@ -203,3 +204,19 @@ def segment_image(
     if show_bounding_box or show_cell_count or show_area:
         add_labelling(viewer, masks[0], show_bounding_box, show_cell_count, show_area)
     return masks
+
+@magic_factory(
+    save_directory = dict(widget_type='FileEdit', mode='d', label='Save to directory'),
+)
+def full_analysis(
+    viewer: Viewer,
+    image: "napari.layers.Image",
+    image2: "napari.layers.Image",
+    save_directory: str,
+    file_name: str,
+) -> None:
+    for layer in viewer.layers:
+        layer.visible = False
+
+    #imsave(save_directory+'/'+file_name+'.png', viewer.screenshot())
+    return
