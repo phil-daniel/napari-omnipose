@@ -7,19 +7,22 @@ from skimage.measure import regionprops_table
 from skimage.segmentation import expand_labels
 from skimage.morphology import skeletonize
 from skimage.io import imsave
-
+from cellpose_omni import models
 
 from napari.utils.notifications import show_warning, show_info
 from napari import Viewer
 
 import numpy as np
+import csv
 
 if TYPE_CHECKING:
     import napari
 
 import napari
 
-def make_bounding_box(coords):
+def make_bounding_box(
+    coords,
+):
     minr = coords[0]
     minc = coords[1]
     maxr = coords[2]
@@ -36,22 +39,19 @@ def make_bounding_box(coords):
     box = np.moveaxis(box, 2, 0)
     return box
 
-@magic_factory(
-)
-def measure_masks(
-    mask: "napari.layers.Labels",
-) -> "napari.layers.Labels":
-    '''properties = regionprops_table(
-        mask.data,
-        properties = {'bbox'}
+def get_segmentation_mask(
+    img_data: "napari.types.ImageData",
+    model: str = 'bact_phase_omni',
+    diameter: int = 25,
+) -> "napari.types.LabelsData":
+    masks, _, _ = models.CellposeModel(model_type=model).eval(
+        [img_data],
+        diameter=diameter,
+        channels=[1,2],
+        omni=True
     )
-    boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
-    for i, x in enumerate(boxes):
-        items = np.where(mask == i+1)
-        # looking for i+1'''
-    shrink = expand_labels(mask.data, -1)
-    return napari.layers.Labels(shrink)
-
+    show_info(str(np.max(masks[0])) + " objects identified.")
+    return masks
 
 def add_labelling(
     viewer: Viewer,
@@ -87,6 +87,22 @@ def add_labelling(
         name='Segmentation Labelling',
     )
     return
+
+@magic_factory(
+)
+def measure_masks(
+    mask: "napari.layers.Labels",
+) -> "napari.layers.Labels":
+    '''properties = regionprops_table(
+        mask.data,
+        properties = {'bbox'}
+    )
+    boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
+    for i, x in enumerate(boxes):
+        items = np.where(mask == i+1)
+        # looking for i+1'''
+    shrink = expand_labels(mask.data, -1)
+    return napari.layers.Labels(shrink)
 
 @magic_factory(
 )
@@ -191,16 +207,10 @@ def segment_image(
     show_area,
     viewer: Viewer,
 ) -> "napari.types.LabelsData":
-    from cellpose_omni import models
     if img_layer == None:
         show_warning("No image layer selected.")
         return None
-    img = img_layer.data
-    masks, flows, styles = models.CellposeModel(model_type=model).eval([img],
-                            diameter=diameter,
-                            channels=[1,2],
-                            omni=True)
-    show_info(str(np.max(masks[0])) + " objects identified.")
+    masks = get_segmentation_mask(img_layer.data, model, diameter)
     if show_bounding_box or show_cell_count or show_area:
         add_labelling(viewer, masks[0], show_bounding_box, show_cell_count, show_area)
     return masks
@@ -212,11 +222,20 @@ def full_analysis(
     viewer: Viewer,
     image: "napari.layers.Image",
     image2: "napari.layers.Image",
-    save_directory: str,
+    save_directory,
     file_name: str,
 ) -> None:
+    output = []
+    # Writing output of the image analysis to a csv file
+    with open(str(save_directory)+'/'+file_name+'.csv', 'w', newline='') as file:
+        writer = csv.writer(file)
+        for row in output:
+            writer.writerow(row)
+    # Hiding all irrelevant layers to ensure screenshot shows correct infomation.
     for layer in viewer.layers:
         layer.visible = False
-
-    #imsave(save_directory+'/'+file_name+'.png', viewer.screenshot())
+    image.visible = True
+    image2.visible = True
+    # Saving screenshot image of viewer
+    imsave(str(save_directory)+'/'+file_name+'.png', viewer.screenshot())
     return
