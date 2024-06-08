@@ -39,20 +39,7 @@ def make_bounding_box(
     box = np.moveaxis(box, 2, 0)
     return box
 
-def get_segmentation_mask(
-    img_data: "napari.types.ImageData",
-    model: str = 'bact_phase_omni',
-    diameter: int = 25,
-) -> "napari.types.LabelsData":
-    masks, _, _ = models.CellposeModel(model_type=model).eval(
-        [img_data],
-        diameter=diameter,
-        channels=[1,2],
-        omni=True
-    )
-    show_info(str(np.max(masks[0])) + " objects identified.")
-    return masks
-
+# Adds a new label layer to the view, consisting of all the information in properties
 def create_label_layer(
     viewer: Viewer,
     layer_name: str,
@@ -64,7 +51,7 @@ def create_label_layer(
     props_to_ignore = {'label', 'bbox-0', 'bbox-1', 'bbox-2', 'bbox-3'}
     for prop in properties.keys():
         if prop not in props_to_ignore:
-            labelText.append(prop+": {" +prop+"}")
+            labelText.append(prop.capitalize() + ": {" + prop + "}")
     viewer.add_shapes(
         boxes,
         shape_type = 'rectangle',
@@ -83,19 +70,38 @@ def create_label_layer(
     )
     return
 
+# Returns a mask of the image using the cellpose model inputted
+def get_segmentation_mask(
+    img_data: "napari.types.ImageData",
+    model: str = 'bact_phase_omni',
+    diameter: int = 25,
+) -> "napari.types.LabelsData":
+    masks, _, _ = models.CellposeModel(model_type=model).eval(
+        [img_data],
+        diameter=diameter,
+        channels=[1,2],
+        omni=True
+    )
+    show_info(str(np.max(masks[0])) + " objects identified.")
+    return masks
 
 def add_labelling(
     viewer: Viewer,
     segmentation_mask,
-    bounding_box: bool,
     cell_count: bool,
+    bounding_box: bool,
     display_area: bool,
 ) -> None:
+    info = ['bbox']
+    if cell_count:
+        info.append('label')
+    if display_area:
+        info.append('area')
     properties = regionprops_table(
         segmentation_mask,
-        properties = ('label', 'bbox', 'perimeter', 'area'),
+        properties = ('label', 'bbox', 'area'),
     )
-    create_label_info(viewer, "segmentation label", properties, bounding_box)
+    create_label_layer(viewer, "segmentation label", properties, bounding_box)
     return
 
 @magic_factory(
@@ -197,7 +203,7 @@ def label_segmentation(
     if seg_layer == None:
         show_warning("No label layer selected.")
         return None
-    add_labelling(viewer, seg_layer.data, show_bounding_box, show_cell_count, show_area)
+    add_labelling(viewer, seg_layer.data, show_cell_count, show_bounding_box, show_area)
     return None
 
 
