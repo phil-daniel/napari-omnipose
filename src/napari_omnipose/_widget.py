@@ -53,6 +53,37 @@ def get_segmentation_mask(
     show_info(str(np.max(masks[0])) + " objects identified.")
     return masks
 
+def create_label_layer(
+    viewer: Viewer,
+    layer_name: str,
+    properties: dict,
+    show_bounding_boxes: bool,
+) -> None:
+    boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
+    labelText = ["{label}"] if 'label' in properties else []
+    props_to_ignore = {'label', 'bbox-0', 'bbox-1', 'bbox-2', 'bbox-3'}
+    for prop in properties.keys():
+        if prop not in props_to_ignore:
+            labelText.append(prop+": {" +prop+"}")
+    viewer.add_shapes(
+        boxes,
+        shape_type = 'rectangle',
+        face_color = 'transparent',
+        edge_color = 'yellow',
+        edge_width = 2 if show_bounding_boxes else 0,
+        properties = properties,
+        text = {
+            'string': "\n".join(labelText),
+            'size': 10,
+            'color': 'yellow',
+            'anchor': 'upper_left',
+            'translation': [-3, 0],
+        },
+        name = layer_name,
+    )
+    return
+
+
 def add_labelling(
     viewer: Viewer,
     segmentation_mask,
@@ -64,28 +95,7 @@ def add_labelling(
         segmentation_mask,
         properties = ('label', 'bbox', 'perimeter', 'area'),
     )
-    boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
-    labelText = []
-    if cell_count:
-        labelText.append("{label}")
-    if display_area:
-        labelText.append("Area: {area}")
-    viewer.add_shapes(
-        boxes,
-        shape_type = 'rectangle',
-        face_color = 'transparent',
-        edge_color = 'yellow',
-        edge_width = 2 if bounding_box else 0,
-        properties = properties,
-        text = {
-            'string': "\n".join(labelText),
-            'size': 10,
-            'color': 'yellow',
-            'anchor': 'upper_left',
-            'translation': [-3, 0],
-        },
-        name='Segmentation Labelling',
-    )
+    create_label_info(viewer, "segmentation label", properties, bounding_box)
     return
 
 @magic_factory(
