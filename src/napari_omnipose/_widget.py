@@ -99,7 +99,7 @@ def add_labelling(
         info.append('area')
     properties = regionprops_table(
         segmentation_mask,
-        properties = ('label', 'bbox', 'area'),
+        properties = tuple(info),
     )
     create_label_layer(viewer, "segmentation label", properties, bounding_box)
     return
@@ -123,24 +123,25 @@ def measure_masks(
 @magic_factory(
 )
 def calculate_intensity(
-    seg_layer: "napari.layers.Labels",
-    img_layer: "napari.layers.Image",
     viewer: Viewer,
+    seg_layer: "napari.layers.Labels",
+    intensity_image: "napari.layers.Image",
+    show_background_areas: bool = True,
     min_dist: int = 5,
     max_dist: int = 10,
-) -> "napari.layers.Labels":
+) -> None:
     if min_dist >=  max_dist:
         show_warning("Minimum distance is greater or equal to maximum distance")
         return None
     cell_intensity = regionprops_table(
         label_image = seg_layer.data,
-        intensity_image = img_layer.data,
+        intensity_image = intensity_image.data,
         properties = {'label', 'area', 'intensity_mean', 'bbox'}
     )
     background = np.subtract(expand_labels(seg_layer.data, max_dist), expand_labels(seg_layer.data, min_dist))
     background_intensity = regionprops_table(
         label_image = background,
-        intensity_image = img_layer.data,
+        intensity_image = intensity_image.data,
         properties = {'label', 'intensity_mean'}
     )
     background_dict = {}
@@ -149,26 +150,10 @@ def calculate_intensity(
     for i in range(len(cell_intensity['label'])):
         if background_dict.get(cell_intensity['label'][i]):
             cell_intensity['intensity_mean'][i] -= background_dict[cell_intensity['label'][i]]
-    # making shapes
-    boxes = make_bounding_box([cell_intensity[f'bbox-{i}'] for i in range(4)])
-    labelText = ["{label}", "Mean Intensity: {intensity_mean}"]
-    viewer.add_shapes(
-        boxes,
-        shape_type = 'rectangle',
-        face_color = 'transparent',
-        edge_color = 'green',
-        edge_width = 2,
-        properties = cell_intensity,
-        text = {
-            'string': "\n".join(labelText),
-            'size': 10,
-            'color': 'green',
-            'anchor': 'upper_left',
-            'translation': [-3, 0],
-        },
-        name='Intensity Labelling',
-    )
-    return napari.layers.Labels(data = background, name = "Background intensity areas")
+    create_label_layer(viewer, "intensity labels", cell_intensity, True)
+    if show_background_areas:
+        viewer.add_labels(background, name = "Background intensity areas")
+    return
 
 @magic_factory(
 )
@@ -194,11 +179,11 @@ def remove_segmented_object(
     show_area = dict(widget_type="CheckBox", text="Show Cell Area", value=False),
 )
 def label_segmentation(
+    viewer: Viewer,
     seg_layer: "napari.layers.Labels",
     show_bounding_box: bool,
     show_cell_count: bool,
     show_area: bool,
-    viewer: Viewer,
 ) -> None:
     if seg_layer == None:
         show_warning("No label layer selected.")
@@ -215,43 +200,54 @@ def label_segmentation(
     show_area = dict(widget_type="CheckBox", text="Show Cell Area", value=False),
 )
 def segment_image(
+    viewer: Viewer,
     img_layer: "napari.layers.Image",
     model,
     diameter,
     show_bounding_box,
     show_cell_count,
     show_area,
-    viewer: Viewer,
-) -> "napari.types.LabelsData":
+) -> None:
     if img_layer == None:
         show_warning("No image layer selected.")
         return None
     masks = get_segmentation_mask(img_layer.data, model, diameter)
+    viewer.add_labels(masks, name='Segmentation')
     if show_bounding_box or show_cell_count or show_area:
         add_labelling(viewer, masks[0], show_bounding_box, show_cell_count, show_area)
-    return masks
+    return
 
 @magic_factory(
-    save_directory = dict(widget_type='FileEdit', mode='d', label='Save to directory'),
+    save_directory = dict(widget_type='FileEdit', mode='d', label='Save to directory', value="~/"),
+    file_name = dict(value = "ImageAnalysis"),
+    model = dict(widget_type='ComboBox', label='Model', choices=['bact_phase_omni', 'bact_fluor_omni', 'nuclei', 'cyto', 'cyto2'], value='bact_phase_omni'),
+    diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
 )
 def full_analysis(
     viewer: Viewer,
     image: "napari.layers.Image",
-    image2: "napari.layers.Image",
+    intensity_image: "napari.layers.Image",
     save_directory,
     file_name: str,
+    model: str,
+    diameter: int,
 ) -> None:
     output = []
+    # Hiding all irrelevant layers to ensure screenshot shows correct information.
+    for layer in viewer.layers:
+        layer.visible = False
+    image.visible = True
+    # Adding segmentation layer and label layer
+    segmentation_mask = get_segmentation_mask(image.data, model, diameter)
+    viewer.add_labels(segmentation_mask, name='Segmentation Mask')
+    add_labelling(viewer, segmentation_mask, True, True, False)
+
+
     # Writing output of the image analysis to a csv file
     with open(str(save_directory)+'/'+file_name+'.csv', 'w', newline='') as file:
         writer = csv.writer(file)
         for row in output:
             writer.writerow(row)
-    # Hiding all irrelevant layers to ensure screenshot shows correct infomation.
-    for layer in viewer.layers:
-        layer.visible = False
-    image.visible = True
-    image2.visible = True
     # Saving screenshot image of viewer
     imsave(str(save_directory)+'/'+file_name+'.png', viewer.screenshot())
     return
