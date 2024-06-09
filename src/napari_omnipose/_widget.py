@@ -136,7 +136,7 @@ def calculate_intensity(
     cell_intensity = regionprops_table(
         label_image = seg_layer.data,
         intensity_image = intensity_image.data,
-        properties = {'label', 'area', 'intensity_mean', 'bbox'}
+        properties = {'label', 'intensity_mean', 'bbox'}
     )
     background = np.subtract(expand_labels(seg_layer.data, max_dist), expand_labels(seg_layer.data, min_dist))
     background_intensity = regionprops_table(
@@ -232,7 +232,6 @@ def full_analysis(
     model: str,
     diameter: int,
 ) -> None:
-    output = []
     # Hiding all irrelevant layers to ensure screenshot shows correct information.
     for layer in viewer.layers:
         layer.visible = False
@@ -240,14 +239,16 @@ def full_analysis(
     # Adding segmentation layer and label layer
     segmentation_mask = get_segmentation_mask(image.data, model, diameter)
     viewer.add_labels(segmentation_mask, name='Segmentation Mask')
-    add_labelling(viewer, segmentation_mask, True, True, False)
-
-
+    add_labelling(viewer, segmentation_mask[0], True, True, False)
+    properties = regionprops_table(
+        label_image = segmentation_mask[0],
+        properties = {'label', 'area'}
+    )
+    info = np.array([key for key in properties.keys()])
+    output = np.array([properties[key] for key in properties.keys()])
+    output = np.append([info], np.transpose(output), axis=0)
     # Writing output of the image analysis to a csv file
-    with open(str(save_directory)+'/'+file_name+'.csv', 'w', newline='') as file:
-        writer = csv.writer(file)
-        for row in output:
-            writer.writerow(row)
+    np.savetxt(str(save_directory)+'/'+file_name+'.csv', output, delimiter=",", fmt='%s')
     # Saving screenshot image of viewer
     imsave(str(save_directory)+'/'+file_name+'.png', viewer.screenshot())
     return
