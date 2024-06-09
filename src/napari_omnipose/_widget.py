@@ -88,9 +88,9 @@ def get_segmentation_mask(
 def add_labelling(
     viewer: Viewer,
     segmentation_mask,
-    cell_count: bool,
-    bounding_box: bool,
-    display_area: bool,
+    cell_count: bool = False,
+    bounding_box: bool = False,
+    display_area: bool = False,
 ) -> None:
     info = ['bbox']
     if cell_count:
@@ -106,10 +106,10 @@ def add_labelling(
 
 def get_properties(
     segmentation_mask,
-    bounding_box: bool,
-    count: bool,
-    area: bool,
-    perimeter: bool,
+    bounding_box: bool = False,
+    count: bool = False,
+    area: bool = False,
+    perimeter: bool = False,
 ) -> dict:
     info = []
     if bounding_box: info.append('bbox')
@@ -216,7 +216,7 @@ def calculate_intensity(
 )
 def remove_segmented_object(
     seg_layer: "napari.layers.Labels",
-    int_value: list[int]
+    int_value: list[int],
 ) -> None:
     if seg_layer == None:
         show_warning("No label layer selected.")
@@ -238,9 +238,9 @@ def remove_segmented_object(
 def label_segmentation(
     viewer: Viewer,
     seg_layer: "napari.layers.Labels",
-    show_bounding_box: bool,
-    show_cell_count: bool,
-    show_area: bool,
+    show_bounding_box: bool = False,
+    show_cell_count: bool = False,
+    show_area: bool = False,
 ) -> None:
     if seg_layer == None:
         show_warning("No label layer selected.")
@@ -299,7 +299,12 @@ def full_analysis(
     segmentation_mask = get_segmentation_mask(image.data, model, diameter)
     viewer.add_labels(segmentation_mask, name='Segmentation Mask')
     add_labelling(viewer, segmentation_mask[0], True, True, False)
-    properties = get_properties(segmentation_mask[0], False, True, True, True)
+    properties = get_properties(
+        segmentation_mask = segmentation_mask[0],
+        count = True,
+        area = True,
+        perimeter = True,
+    )
     intensity_properties = get_intensity_properties(
         segmentation_mask = segmentation_mask[0],
         intensity_data = intensity_image.data,
