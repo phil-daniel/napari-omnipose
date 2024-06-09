@@ -33,6 +33,9 @@ contributions:
     - id: napari-omnipose.calculate_intensity
       python_name: napari_omnipose:calculate_intensity
       title: Calculate Intensity
+    - id: napari-omnipose.full_analysis
+      python_name: napari_omnipose:full_analysis
+      title: Full Analysis
   readers:
     - command: napari-omnipose.get_reader
       accepts_directories: false
@@ -59,3 +62,5 @@ contributions:
       display_name: Measure Masks
     - command: napari-omnipose.calculate_intensity
       display_name: Calculate Intensity
+    - command: napari-omnipose.full_analysis
+      display_name: Full Analysis
