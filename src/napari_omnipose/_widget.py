@@ -104,6 +104,53 @@ def add_labelling(
     create_label_layer(viewer, "segmentation label", properties, bounding_box)
     return
 
+def get_properties(
+    segmentation_mask,
+    bounding_box: bool,
+    count: bool,
+    area: bool,
+    perimeter: bool,
+    intensity_mean: bool,
+    intensity_max: bool,
+    intensity_min: bool,
+    intensity_std: bool,
+) -> dict:
+    info = []
+    if bounding_box: info.append('bbox')
+    if count: info.append('label')
+    if area: info.append('area')
+    if perimeter: info.append('perimeter')
+    if intensity_mean: info.append('intensity_mean')
+    if intensity_max: info.append('intensity_max')
+    if intensity_min: info.append('intensity_min')
+    if intensity_std: info.append('intensity.std')
+    properties = regionprops_table(
+        segmentation_mask,
+        properties = tuple(info),
+    )
+    return properties
+
+def get_background_intensity(
+    viewer: Viewer,
+    segmentation,
+    intensity_data,
+    show_background: bool,
+    min_dist: int,
+    max_dist: int,
+) -> dict:
+    background = np.subtract(expand_labels(segmentation, max_dist), expand_labels(segmentation, min_dist))
+    background_intensity = regionprops_table(
+        label_image = background,
+        intensity_image = intensity_data,
+        properties = {'label', 'intensity_mean'}
+    )
+    background_dict = {}
+    for i in range(len(background_intensity['label'])):
+        background_dict[background_intensity['label'][i]] = background_intensity['intensity_mean'][i]
+    if show_background:
+        viewer.add_labels(background, name = "Background intensity areas")
+    return background_dict
+
 @magic_factory(
 )
 def measure_masks(
@@ -138,21 +185,18 @@ def calculate_intensity(
         intensity_image = intensity_image.data,
         properties = {'label', 'intensity_mean', 'bbox'}
     )
-    background = np.subtract(expand_labels(seg_layer.data, max_dist), expand_labels(seg_layer.data, min_dist))
-    background_intensity = regionprops_table(
-        label_image = background,
-        intensity_image = intensity_image.data,
-        properties = {'label', 'intensity_mean'}
+    background_dict = get_background_intensity(
+        viewer,
+        seg_layer.data,
+        intensity_image.data,
+        show_background_areas,
+        min_dist,
+        max_dist
     )
-    background_dict = {}
-    for i in range(len(background_intensity['label'])):
-        background_dict[background_intensity['label'][i]] = background_intensity['intensity_mean'][i]
     for i in range(len(cell_intensity['label'])):
         if background_dict.get(cell_intensity['label'][i]):
             cell_intensity['intensity_mean'][i] -= background_dict[cell_intensity['label'][i]]
     create_label_layer(viewer, "intensity labels", cell_intensity, True)
-    if show_background_areas:
-        viewer.add_labels(background, name = "Background intensity areas")
     return
 
 @magic_factory(
@@ -240,10 +284,7 @@ def full_analysis(
     segmentation_mask = get_segmentation_mask(image.data, model, diameter)
     viewer.add_labels(segmentation_mask, name='Segmentation Mask')
     add_labelling(viewer, segmentation_mask[0], True, True, False)
-    properties = regionprops_table(
-        label_image = segmentation_mask[0],
-        properties = {'label', 'area'}
-    )
+    properties = get_properties(segmentation_mask[0], False, True, True, True)
     info = np.array([key for key in properties.keys()])
     output = np.array([properties[key] for key in properties.keys()])
     output = np.append([info], np.transpose(output), axis=0)
