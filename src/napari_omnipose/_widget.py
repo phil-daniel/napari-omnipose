@@ -147,13 +147,11 @@ def get_intensity_properties(
     intensity_mean: bool = False,
     intensity_min: bool = False,
     intensity_max: bool = False,
-    intensity_std: bool = False,
 ) -> dict:
     info = ['label', 'bbox']
     if intensity_mean: info.append('intensity_mean')
     if intensity_min: info.append('intensity_min')
     if intensity_max: info.append('intensity_max')
-    if intensity_std: info.append('intensity_std')
     properties = regionprops_table(
         label_image = segmentation_mask,
         intensity_image = intensity_data,
@@ -290,6 +288,8 @@ def full_analysis(
     file_name: str,
     model: str,
     diameter: int,
+    min_dist: int = 5,
+    max_dist: int = 10,
 ) -> None:
     # Hiding all irrelevant layers to ensure screenshot shows correct information.
     for layer in viewer.layers:
@@ -300,9 +300,21 @@ def full_analysis(
     viewer.add_labels(segmentation_mask, name='Segmentation Mask')
     add_labelling(viewer, segmentation_mask[0], True, True, False)
     properties = get_properties(segmentation_mask[0], False, True, True, True)
-    info = np.array([key for key in properties.keys()])
-    output = np.array([properties[key] for key in properties.keys()])
-    output = np.append([info], np.transpose(output), axis=0)
+    intensity_properties = get_intensity_properties(
+        segmentation_mask = segmentation_mask[0],
+        intensity_data = intensity_image.data,
+        min_dist = min_dist,
+        max_dist = max_dist,
+        intensity_mean = True,
+        intensity_min = True,
+        intensity_max = True,
+    )
+    for key in intensity_properties.keys():
+        if key not in properties.keys():
+            properties[key] = intensity_properties[key]
+    row_names = np.array([key for key in properties.keys()])
+    prop_data = np.array([properties[key] for key in properties.keys()])
+    output = np.append([row_names], np.transpose(prop_data), axis=0)
     # TOTAL INTENSITY
 
 
