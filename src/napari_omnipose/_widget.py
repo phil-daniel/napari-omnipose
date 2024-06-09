@@ -110,20 +110,12 @@ def get_properties(
     count: bool,
     area: bool,
     perimeter: bool,
-    intensity_mean: bool,
-    intensity_max: bool,
-    intensity_min: bool,
-    intensity_std: bool,
 ) -> dict:
     info = []
     if bounding_box: info.append('bbox')
     if count: info.append('label')
     if area: info.append('area')
     if perimeter: info.append('perimeter')
-    if intensity_mean: info.append('intensity_mean')
-    if intensity_max: info.append('intensity_max')
-    if intensity_min: info.append('intensity_min')
-    if intensity_std: info.append('intensity.std')
     properties = regionprops_table(
         segmentation_mask,
         properties = tuple(info),
@@ -131,10 +123,8 @@ def get_properties(
     return properties
 
 def get_background_intensity(
-    viewer: Viewer,
     segmentation,
     intensity_data,
-    show_background: bool,
     min_dist: int,
     max_dist: int,
 ) -> dict:
@@ -147,9 +137,40 @@ def get_background_intensity(
     background_dict = {}
     for i in range(len(background_intensity['label'])):
         background_dict[background_intensity['label'][i]] = background_intensity['intensity_mean'][i]
-    if show_background:
-        viewer.add_labels(background, name = "Background intensity areas")
     return background_dict
+
+def get_intensity_properties(
+    segmentation_mask,
+    intensity_data,
+    min_dist: int,
+    max_dist: int,
+    intensity_mean: bool = False,
+    intensity_min: bool = False,
+    intensity_max: bool = False,
+    intensity_std: bool = False,
+) -> dict:
+    info = ['label', 'bbox']
+    if intensity_mean: info.append('intensity_mean')
+    if intensity_min: info.append('intensity_min')
+    if intensity_max: info.append('intensity_max')
+    if intensity_std: info.append('intensity_std')
+    properties = regionprops_table(
+        label_image = segmentation_mask,
+        intensity_image = intensity_data,
+        properties = tuple(info),
+    )
+    background_intensity = get_background_intensity(
+        segmentation = segmentation_mask,
+        intensity_data = intensity_data,
+        min_dist = min_dist,
+        max_dist = max_dist,
+    )
+    for i in range(len(properties['label'])):
+        if background_intensity.get(properties['label'][i]):
+            if intensity_mean: properties['intensity_mean'][i] -= background_intensity[properties['label'][i]]
+            if intensity_min: properties['intensity_min'][i] -= background_intensity[properties['label'][i]]
+            if intensity_max: properties['intensity_max'][i] -= background_intensity[properties['label'][i]]
+    return properties
 
 @magic_factory(
 )
@@ -180,23 +201,17 @@ def calculate_intensity(
     if min_dist >=  max_dist:
         show_warning("Minimum distance is greater or equal to maximum distance")
         return None
-    cell_intensity = regionprops_table(
-        label_image = seg_layer.data,
-        intensity_image = intensity_image.data,
-        properties = {'label', 'intensity_mean', 'bbox'}
+    intensity = get_intensity_properties(
+        segmentation_mask = seg_layer.data,
+        intensity_data = intensity_image.data,
+        min_dist = min_dist,
+        max_dist = max_dist,
+        intensity_mean = True,
     )
-    background_dict = get_background_intensity(
-        viewer,
-        seg_layer.data,
-        intensity_image.data,
-        show_background_areas,
-        min_dist,
-        max_dist
-    )
-    for i in range(len(cell_intensity['label'])):
-        if background_dict.get(cell_intensity['label'][i]):
-            cell_intensity['intensity_mean'][i] -= background_dict[cell_intensity['label'][i]]
-    create_label_layer(viewer, "intensity labels", cell_intensity, True)
+    if show_background_areas and viewer != None:
+        background = np.subtract(expand_labels(seg_layer.data, max_dist), expand_labels(seg_layer.data, min_dist))
+        viewer.add_labels(background, name="Intensity background")
+    create_label_layer(viewer, "Intensity Labels", intensity, True)
     return
 
 @magic_factory(
@@ -288,6 +303,10 @@ def full_analysis(
     info = np.array([key for key in properties.keys()])
     output = np.array([properties[key] for key in properties.keys()])
     output = np.append([info], np.transpose(output), axis=0)
+    # TOTAL INTENSITY
+
+
+
     # Writing output of the image analysis to a csv file
     np.savetxt(str(save_directory)+'/'+file_name+'.csv', output, delimiter=",", fmt='%s')
     # Saving screenshot image of viewer
