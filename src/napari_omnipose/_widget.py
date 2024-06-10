@@ -13,7 +13,6 @@ from napari.utils.notifications import show_warning, show_info
 from napari import Viewer
 
 import numpy as np
-import csv
 
 if TYPE_CHECKING:
     import napari
@@ -152,12 +151,14 @@ def get_intensity_properties(
     intensity_data,
     min_dist: int,
     max_dist: int,
+    bbox: bool = True,
     intensity_mean: bool = False,
     intensity_min: bool = False,
     intensity_max: bool = False,
     show_intensity_std: bool = False,
 ) -> dict:
-    info, extra_props = ['label', 'bbox'], []
+    info, extra_props = ['label'], []
+    if bbox: info.append('bbox')
     if intensity_mean: info.append('intensity_mean')
     if intensity_min: info.append('intensity_min')
     if intensity_max: info.append('intensity_max')
@@ -270,11 +271,11 @@ def label_segmentation(
 def segment_image(
     viewer: Viewer,
     img_layer: "napari.layers.Image",
-    model,
-    diameter,
-    show_bounding_box,
-    show_cell_count,
-    show_area,
+    model: str,
+    diameter: int,
+    show_bounding_box: bool,
+    show_cell_count: bool,
+    show_area: bool,
 ) -> None:
     if img_layer == None:
         show_warning("No image layer selected.")
@@ -321,6 +322,7 @@ def full_analysis(
         intensity_data = intensity_image.data,
         min_dist = min_dist,
         max_dist = max_dist,
+        bbox = False, 
         intensity_mean = True,
         intensity_min = True,
         intensity_max = True,
