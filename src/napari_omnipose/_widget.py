@@ -81,8 +81,9 @@ def get_segmentation_mask(
     img_data: "napari.types.ImageData",
     model: str = 'bact_phase_omni',
     diameter: int = 25,
+    use_gpu: bool = False
 ) -> "napari.types.LabelsData":
-    masks, _, _ = models.CellposeModel(model_type=model).eval(
+    masks, _, _ = models.CellposeModel(model_type=model, gpu=use_gpu).eval(
         [img_data],
         diameter=diameter,
         channels=[1,2],
@@ -277,6 +278,7 @@ def label_segmentation(
 def segment_image(
     viewer: Viewer,
     img_layer: "napari.layers.Image",
+    use_gpu: bool,
     model: str,
     diameter: int,
     show_bounding_box: bool,
@@ -286,7 +288,7 @@ def segment_image(
     if img_layer == None:
         show_warning("No image layer selected.")
         return None
-    masks = get_segmentation_mask(img_layer.data, model, diameter)
+    masks = get_segmentation_mask(img_layer.data, model, diameter, use_gpu)
     viewer.add_labels(masks, name='Segmentation')
     if show_bounding_box or show_cell_count or show_area:
         add_labelling(viewer, masks[0], show_bounding_box, show_cell_count, show_area)
@@ -302,6 +304,7 @@ def full_analysis(
     viewer: Viewer,
     image: "napari.layers.Image",
     intensity_image: "napari.layers.Image",
+    use_gpu: bool,
     save_directory,
     file_name: str,
     model: str,
@@ -313,7 +316,12 @@ def full_analysis(
         layer.visible = False
     image.visible = True
     # Adding segmentation layer and label layer
-    segmentation_mask = get_segmentation_mask(image.data, model, diameter)
+    segmentation_mask = get_segmentation_mask(
+        img_data = image.data,
+        model = model,
+        diameter = diameter,
+        use_gpu = use_gpu
+    )
     viewer.add_labels(segmentation_mask, name='Segmentation Mask')
     add_labelling(viewer, segmentation_mask[0], True, True, False)
     properties = get_properties(
