@@ -81,8 +81,9 @@ def get_segmentation_mask(
     img_data: "napari.types.ImageData",
     model: str = 'bact_phase_omni',
     diameter: int = 25,
+    use_gpu: bool = False
 ) -> "napari.types.LabelsData":
-    masks, _, _ = models.CellposeModel(model_type=model).eval(
+    masks, _, _ = models.CellposeModel(gpu=use_gpu, model_type=model).eval(
         [img_data],
         diameter=diameter,
         channels=[1,2],
@@ -91,6 +92,27 @@ def get_segmentation_mask(
     show_info(str(np.max(masks[0])) + " objects identified.")
     return masks
 
+# Returns a dictionary containing the information below
+def get_properties(
+    segmentation_mask,
+    bounding_box: bool = False,
+    count: bool = False,
+    area: bool = False,
+    perimeter: bool = False,
+    centroid: bool = False,
+) -> dict:
+    info = []
+    if bounding_box: info.append('bbox')
+    if count: info.append('label')
+    if area: info.append('area')
+    if perimeter: info.append('perimeter')
+    if centroid: info.append('centroid')
+    properties = regionprops_table(
+        segmentation_mask,
+        properties = tuple(info),
+    )
+    return properties
+
 def add_labelling(
     viewer: Viewer,
     segmentation_mask,
@@ -98,50 +120,20 @@ def add_labelling(
     bounding_box: bool = False,
     display_area: bool = False,
 ) -> None:
-    info = []
-    if bounding_box: info.append('bbox')
-    if cell_count: info.append('label')
-    if display_area: info.append('area')
-    properties = regionprops_table(
-        segmentation_mask,
-        properties = tuple(info),
+    properties = get_properties(
+        segmentation_mask = segmentation_mask,
+        bounding_box = bounding_box,
+        count = cell_count,
+        area = display_area,
     )
-    create_label_layer(viewer, "segmentation label", properties, bounding_box)
+    create_label_layer(viewer, "Segmentation Labels", properties, bounding_box)
     return
-
-def get_properties(
-    segmentation_mask,
-    bounding_box: bool = False,
-    count: bool = False,
-    area: bool = False,
-    perimeter: bool = False,
-) -> dict:
-    info = []
-    if bounding_box: info.append('bbox')
-    if count: info.append('label')
-    if area: info.append('area')
-    if perimeter: info.append('perimeter')
-    properties = regionprops_table(
-        segmentation_mask,
-        properties = tuple(info),
-    )
-    return properties
 
 def get_background_intensity(
     segmentation,
     intensity_data,
     expansion_dist: int = 10,
 ) -> int:
-    #background = np.subtract(expand_labels(segmentation, max_dist), expand_labels(segmentation, min_dist))
-    #background_intensity = regionprops_table(
-    #    label_image = background,
-    #    intensity_image = intensity_data,
-    #    properties = {'label', 'intensity_mean'}
-    #)
-    #background_dict = {}
-    #for i in range(len(background_intensity['label'])):
-    #    background_dict[background_intensity['label'][i]] = background_intensity['intensity_mean'][i]
-
     background = expand_labels(segmentation, expansion_dist)
     background[background == 0] = np.max(background)+1
     background[background != np.max(background)] = 0
@@ -162,14 +154,16 @@ def get_intensity_properties(
     intensity_min: bool = False,
     intensity_max: bool = False,
     show_intensity_std: bool = False,
-    show_background_mean: bool = False,
+    background_mean: bool = False,
+    total_intensity: bool = False,
 ) -> dict:
     info, extra_props = ['label'], []
     if bbox: info.append('bbox')
-    if intensity_mean: info.append('intensity_mean')
+    if intensity_mean or total_intensity: info.append('intensity_mean')
     if intensity_min: info.append('intensity_min')
     if intensity_max: info.append('intensity_max')
     if show_intensity_std: extra_props.append(intensity_std)
+    if total_intensity: info.append('area')
     properties = regionprops_table(
         label_image = segmentation_mask,
         intensity_image = intensity_data,
@@ -187,8 +181,12 @@ def get_intensity_properties(
         properties['intensity_min'] = np.subtract(properties['intensity_min'], background_intensity)
     if intensity_max:
         properties['intensity_max'] = np.subtract(properties['intensity_max'], background_intensity)
-    if show_background_mean:
+    if background_mean:
         properties['background_intensity_mean'] = np.full_like(properties['label'], background_intensity)
+    if total_intensity:
+        properties['total_intensity'] = np.multiply(properties['area'], properties['intensity_mean'])
+        properties.pop('area')
+        if not intensity_mean: properties.pop('intensity_mean')
     return properties
 
 @magic_factory(
@@ -271,6 +269,7 @@ def label_segmentation(
 def segment_image(
     viewer: Viewer,
     img_layer: "napari.layers.Image",
+    use_gpu: bool,
     model: str,
     diameter: int,
     show_bounding_box: bool,
@@ -280,52 +279,76 @@ def segment_image(
     if img_layer == None:
         show_warning("No image layer selected.")
         return None
-    masks = get_segmentation_mask(img_layer.data, model, diameter)
+    masks = get_segmentation_mask(img_layer.data, model, diameter, use_gpu)
     viewer.add_labels(masks, name='Segmentation')
     if show_bounding_box or show_cell_count or show_area:
         add_labelling(viewer, masks[0], show_bounding_box, show_cell_count, show_area)
     return
 
 @magic_factory(
-    save_directory = dict(widget_type='FileEdit', mode='d', label='Save to directory', value="~/"),
-    file_name = dict(value = "ImageAnalysis"),
+    save_directory = dict(widget_type='FileEdit', mode='d', label='Save to Directory', value="~/"),
+    file_name = dict(value="ImageAnalysis"),
     model = dict(widget_type='ComboBox', label='Model', choices=['bact_phase_omni', 'bact_fluor_omni', 'nuclei', 'cyto', 'cyto2'], value='bact_phase_omni'),
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
+    expansion_dist = dict(label="Background intensity expansion"),
+    use_gpu = dict(label="Use GPU for segmentation"),
 )
 def full_analysis(
     viewer: Viewer,
     image: "napari.layers.Image",
     intensity_image: "napari.layers.Image",
     save_directory,
-    file_name: str,
-    model: str,
-    diameter: int,
+    file_name: str = "ImageAnalysis",
+    use_gpu: bool = False,
+    model: str = "bact_phase_omni",
+    existing_segmentation: "napari.layers.Labels" = None,
+    diameter: int = 25,
     expansion_dist: int = 10,
+    show_area: bool = True,
+    show_perimeter: bool = True,
+    show_centroid: bool = True,
+    show_intensity_mean: bool = True,
+    show_intensity_min: bool = True,
+    show_intensity_max: bool = True,
+    show_intensity_std: bool = True,
+    show_total_intensity: bool = True,
+    show_background_intensity_mean: bool = True,
 ) -> None:
     # Hiding all irrelevant layers to ensure screenshot shows correct information.
     for layer in viewer.layers:
         layer.visible = False
+    if existing_segmentation:
+        existing_segmentation.visible = True
     image.visible = True
     # Adding segmentation layer and label layer
-    segmentation_mask = get_segmentation_mask(image.data, model, diameter)
-    viewer.add_labels(segmentation_mask, name='Segmentation Mask')
+    if existing_segmentation: segmentation_mask = [existing_segmentation.data]
+    else:
+        segmentation_mask = get_segmentation_mask(
+            img_data = image.data,
+            model = model,
+            diameter = diameter,
+            use_gpu = use_gpu
+        )
+        viewer.add_labels(segmentation_mask, name='Segmentation Mask')
     add_labelling(viewer, segmentation_mask[0], True, True, False)
     properties = get_properties(
         segmentation_mask = segmentation_mask[0],
         count = True,
-        area = True,
-        perimeter = True,
+        area = show_area,
+        perimeter = show_perimeter,
+        centroid = show_centroid,
     )
     intensity_properties = get_intensity_properties(
         segmentation_mask = segmentation_mask[0],
         intensity_data = intensity_image.data,
         expansion_dist = expansion_dist,
         bbox = False, 
-        intensity_mean = True,
-        intensity_min = True,
-        intensity_max = True,
-        show_intensity_std = True,
-        show_background_mean = True,
+        intensity_mean = show_intensity_mean,
+        intensity_min = show_intensity_min,
+        intensity_max = show_intensity_max,
+        show_intensity_std = show_intensity_std,
+        background_mean = show_background_intensity_mean,
+        total_intensity = show_total_intensity,
     )
     for key in intensity_properties.keys():
         if key not in properties.keys():
@@ -333,9 +356,6 @@ def full_analysis(
     row_names = np.array([key for key in properties.keys()])
     prop_data = np.array([properties[key] for key in properties.keys()])
     output = np.append([row_names], np.transpose(prop_data), axis=0)
-    # TOTAL INTENSITY
-
-
 
     # Writing output of the image analysis to a csv file
     np.savetxt(str(save_directory)+'/'+file_name+'.csv', output, delimiter=",", fmt='%s')
