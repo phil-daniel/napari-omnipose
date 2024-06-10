@@ -20,6 +20,13 @@ if TYPE_CHECKING:
 
 import napari
 
+# extra region props
+def intensity_std(
+    mask,
+    intensity
+) -> np.ndarray:
+    return np.std(intensity[mask])
+
 def make_bounding_box(
     coords,
 ):
@@ -38,6 +45,7 @@ def make_bounding_box(
     )
     box = np.moveaxis(box, 2, 0)
     return box
+
 
 # Adds a new label layer to the view, consisting of all the information in properties
 def create_label_layer(
@@ -147,15 +155,18 @@ def get_intensity_properties(
     intensity_mean: bool = False,
     intensity_min: bool = False,
     intensity_max: bool = False,
+    show_intensity_std: bool = False,
 ) -> dict:
-    info = ['label', 'bbox']
+    info, extra_props = ['label', 'bbox'], []
     if intensity_mean: info.append('intensity_mean')
     if intensity_min: info.append('intensity_min')
     if intensity_max: info.append('intensity_max')
+    if show_intensity_std: extra_props.append(intensity_std)
     properties = regionprops_table(
         label_image = segmentation_mask,
         intensity_image = intensity_data,
         properties = tuple(info),
+        extra_properties = extra_props
     )
     background_intensity = get_background_intensity(
         segmentation = segmentation_mask,
@@ -313,6 +324,7 @@ def full_analysis(
         intensity_mean = True,
         intensity_min = True,
         intensity_max = True,
+        show_intensity_std = True,
     )
     for key in intensity_properties.keys():
         if key not in properties.keys():
