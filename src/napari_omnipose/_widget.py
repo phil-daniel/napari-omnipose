@@ -286,43 +286,50 @@ def segment_image(
     return
 
 @magic_factory(
-    save_directory = dict(widget_type='FileEdit', mode='d', label='Save to directory', value="~/"),
-    file_name = dict(value = "ImageAnalysis"),
+    save_directory = dict(widget_type='FileEdit', mode='d', label='Save to Directory', value="~/"),
+    file_name = dict(value="ImageAnalysis"),
     model = dict(widget_type='ComboBox', label='Model', choices=['bact_phase_omni', 'bact_fluor_omni', 'nuclei', 'cyto', 'cyto2'], value='bact_phase_omni'),
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
+    expansion_dist = dict(label="Background intensity expansion"),
+    use_gpu = dict(label="Use GPU for segmentation"),
 )
 def full_analysis(
     viewer: Viewer,
     image: "napari.layers.Image",
     intensity_image: "napari.layers.Image",
-    use_gpu: bool,
     save_directory,
-    file_name: str,
-    model: str,
-    diameter: int,
+    file_name: str = "ImageAnalysis",
+    use_gpu: bool = False,
+    model: str = "bact_phase_omni",
+    existing_segmentation: "napari.layers.Labels" = None,
+    diameter: int = 25,
     expansion_dist: int = 10,
-    show_area: bool = False,
-    show_perimeter: bool = False,
-    show_centroid: bool = False,
-    show_intensity_mean: bool = False,
-    show_intensity_min: bool = False,
-    show_intensity_max: bool = False,
-    show_intensity_std: bool = False,
-    show_background_intensity_mean: bool = False,
-    show_total_intensity: bool = False,
+    show_area: bool = True,
+    show_perimeter: bool = True,
+    show_centroid: bool = True,
+    show_intensity_mean: bool = True,
+    show_intensity_min: bool = True,
+    show_intensity_max: bool = True,
+    show_intensity_std: bool = True,
+    show_total_intensity: bool = True,
+    show_background_intensity_mean: bool = True,
 ) -> None:
     # Hiding all irrelevant layers to ensure screenshot shows correct information.
     for layer in viewer.layers:
         layer.visible = False
+    if existing_segmentation:
+        existing_segmentation.visible = True
     image.visible = True
     # Adding segmentation layer and label layer
-    segmentation_mask = get_segmentation_mask(
-        img_data = image.data,
-        model = model,
-        diameter = diameter,
-        use_gpu = use_gpu
-    )
-    viewer.add_labels(segmentation_mask, name='Segmentation Mask')
+    if existing_segmentation: segmentation_mask = [existing_segmentation.data]
+    else:
+        segmentation_mask = get_segmentation_mask(
+            img_data = image.data,
+            model = model,
+            diameter = diameter,
+            use_gpu = use_gpu
+        )
+        viewer.add_labels(segmentation_mask, name='Segmentation Mask')
     add_labelling(viewer, segmentation_mask[0], True, True, False)
     properties = get_properties(
         segmentation_mask = segmentation_mask[0],
