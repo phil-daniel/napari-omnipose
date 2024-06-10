@@ -162,14 +162,16 @@ def get_intensity_properties(
     intensity_min: bool = False,
     intensity_max: bool = False,
     show_intensity_std: bool = False,
-    show_background_mean: bool = False,
+    background_mean: bool = False,
+    total_intensity: bool = False,
 ) -> dict:
     info, extra_props = ['label'], []
     if bbox: info.append('bbox')
-    if intensity_mean: info.append('intensity_mean')
+    if intensity_mean or total_intensity: info.append('intensity_mean')
     if intensity_min: info.append('intensity_min')
     if intensity_max: info.append('intensity_max')
     if show_intensity_std: extra_props.append(intensity_std)
+    if total_intensity: info.append('area')
     properties = regionprops_table(
         label_image = segmentation_mask,
         intensity_image = intensity_data,
@@ -187,8 +189,12 @@ def get_intensity_properties(
         properties['intensity_min'] = np.subtract(properties['intensity_min'], background_intensity)
     if intensity_max:
         properties['intensity_max'] = np.subtract(properties['intensity_max'], background_intensity)
-    if show_background_mean:
+    if background_mean:
         properties['background_intensity_mean'] = np.full_like(properties['label'], background_intensity)
+    if total_intensity:
+        properties['total_intensity'] = np.multiply(properties['area'], properties['intensity_mean'])
+        properties.pop('area')
+        if not intensity_mean: properties.pop('intensity_mean')
     return properties
 
 @magic_factory(
@@ -325,7 +331,8 @@ def full_analysis(
         intensity_min = True,
         intensity_max = True,
         show_intensity_std = True,
-        show_background_mean = True,
+        background_mean = True,
+        total_intensity = True,
     )
     for key in intensity_properties.keys():
         if key not in properties.keys():
@@ -333,9 +340,6 @@ def full_analysis(
     row_names = np.array([key for key in properties.keys()])
     prop_data = np.array([properties[key] for key in properties.keys()])
     output = np.append([row_names], np.transpose(prop_data), axis=0)
-    # TOTAL INTENSITY
-
-
 
     # Writing output of the image analysis to a csv file
     np.savetxt(str(save_directory)+'/'+file_name+'.csv', output, delimiter=",", fmt='%s')
