@@ -83,7 +83,7 @@ def get_segmentation_mask(
     diameter: int = 25,
     use_gpu: bool = False
 ) -> "napari.types.LabelsData":
-    masks, _, _ = models.CellposeModel(model_type=model, gpu=use_gpu).eval(
+    masks, _, _ = models.CellposeModel(gpu=use_gpu, model_type=model).eval(
         [img_data],
         diameter=diameter,
         channels=[1,2],
@@ -92,6 +92,27 @@ def get_segmentation_mask(
     show_info(str(np.max(masks[0])) + " objects identified.")
     return masks
 
+# Returns a dictionary containing the information below
+def get_properties(
+    segmentation_mask,
+    bounding_box: bool = False,
+    count: bool = False,
+    area: bool = False,
+    perimeter: bool = False,
+    centroid: bool = False,
+) -> dict:
+    info = []
+    if bounding_box: info.append('bbox')
+    if count: info.append('label')
+    if area: info.append('area')
+    if perimeter: info.append('perimeter')
+    if centroid: info.append('centroid')
+    properties = regionprops_table(
+        segmentation_mask,
+        properties = tuple(info),
+    )
+    return properties
+
 def add_labelling(
     viewer: Viewer,
     segmentation_mask,
@@ -99,50 +120,20 @@ def add_labelling(
     bounding_box: bool = False,
     display_area: bool = False,
 ) -> None:
-    info = []
-    if bounding_box: info.append('bbox')
-    if cell_count: info.append('label')
-    if display_area: info.append('area')
-    properties = regionprops_table(
-        segmentation_mask,
-        properties = tuple(info),
+    properties = get_properties(
+        segmentation_mask = segmentation_mask,
+        bounding_box = bounding_box,
+        count = cell_count,
+        area = display_area,
     )
-    create_label_layer(viewer, "segmentation label", properties, bounding_box)
+    create_label_layer(viewer, "Segmentation Labels", properties, bounding_box)
     return
-
-def get_properties(
-    segmentation_mask,
-    bounding_box: bool = False,
-    count: bool = False,
-    area: bool = False,
-    perimeter: bool = False,
-) -> dict:
-    info = []
-    if bounding_box: info.append('bbox')
-    if count: info.append('label')
-    if area: info.append('area')
-    if perimeter: info.append('perimeter')
-    properties = regionprops_table(
-        segmentation_mask,
-        properties = tuple(info),
-    )
-    return properties
 
 def get_background_intensity(
     segmentation,
     intensity_data,
     expansion_dist: int = 10,
 ) -> int:
-    #background = np.subtract(expand_labels(segmentation, max_dist), expand_labels(segmentation, min_dist))
-    #background_intensity = regionprops_table(
-    #    label_image = background,
-    #    intensity_image = intensity_data,
-    #    properties = {'label', 'intensity_mean'}
-    #)
-    #background_dict = {}
-    #for i in range(len(background_intensity['label'])):
-    #    background_dict[background_intensity['label'][i]] = background_intensity['intensity_mean'][i]
-
     background = expand_labels(segmentation, expansion_dist)
     background[background == 0] = np.max(background)+1
     background[background != np.max(background)] = 0
@@ -310,6 +301,15 @@ def full_analysis(
     model: str,
     diameter: int,
     expansion_dist: int = 10,
+    show_area: bool = False,
+    show_perimeter: bool = False,
+    show_centroid: bool = False,
+    show_intensity_mean: bool = False,
+    show_intensity_min: bool = False,
+    show_intensity_max: bool = False,
+    show_intensity_std: bool = False,
+    show_background_intensity_mean: bool = False,
+    show_total_intensity: bool = False,
 ) -> None:
     # Hiding all irrelevant layers to ensure screenshot shows correct information.
     for layer in viewer.layers:
@@ -327,20 +327,21 @@ def full_analysis(
     properties = get_properties(
         segmentation_mask = segmentation_mask[0],
         count = True,
-        area = True,
-        perimeter = True,
+        area = show_area,
+        perimeter = show_perimeter,
+        centroid = show_centroid,
     )
     intensity_properties = get_intensity_properties(
         segmentation_mask = segmentation_mask[0],
         intensity_data = intensity_image.data,
         expansion_dist = expansion_dist,
         bbox = False, 
-        intensity_mean = True,
-        intensity_min = True,
-        intensity_max = True,
-        show_intensity_std = True,
-        background_mean = True,
-        total_intensity = True,
+        intensity_mean = show_intensity_mean,
+        intensity_min = show_intensity_min,
+        intensity_max = show_intensity_max,
+        show_intensity_std = show_intensity_std,
+        background_mean = show_background_intensity_mean,
+        total_intensity = show_total_intensity,
     )
     for key in intensity_properties.keys():
         if key not in properties.keys():
