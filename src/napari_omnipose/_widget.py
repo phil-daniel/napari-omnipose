@@ -5,7 +5,6 @@ from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.measure import regionprops_table
 from skimage.segmentation import expand_labels
-from skimage.morphology import skeletonize
 from skimage.io import imsave
 from cellpose_omni import models
 
@@ -99,11 +98,10 @@ def add_labelling(
     bounding_box: bool = False,
     display_area: bool = False,
 ) -> None:
-    info = ['bbox']
-    if cell_count:
-        info.append('label')
-    if display_area:
-        info.append('area')
+    info = []
+    if bounding_box: info.append('bbox')
+    if cell_count: info.append('label')
+    if display_area: info.append('area')
     properties = regionprops_table(
         segmentation_mask,
         properties = tuple(info),
@@ -132,30 +130,39 @@ def get_properties(
 def get_background_intensity(
     segmentation,
     intensity_data,
-    min_dist: int,
-    max_dist: int,
-) -> dict:
-    background = np.subtract(expand_labels(segmentation, max_dist), expand_labels(segmentation, min_dist))
+    expansion_dist: int = 10,
+) -> int:
+    #background = np.subtract(expand_labels(segmentation, max_dist), expand_labels(segmentation, min_dist))
+    #background_intensity = regionprops_table(
+    #    label_image = background,
+    #    intensity_image = intensity_data,
+    #    properties = {'label', 'intensity_mean'}
+    #)
+    #background_dict = {}
+    #for i in range(len(background_intensity['label'])):
+    #    background_dict[background_intensity['label'][i]] = background_intensity['intensity_mean'][i]
+
+    background = expand_labels(segmentation, expansion_dist)
+    background[background == 0] = np.max(background)+1
+    background[background != np.max(background)] = 0
+    background[background == np.max(background)] = 1
     background_intensity = regionprops_table(
         label_image = background,
         intensity_image = intensity_data,
-        properties = {'label', 'intensity_mean'}
+        properties = {'intensity_mean'}
     )
-    background_dict = {}
-    for i in range(len(background_intensity['label'])):
-        background_dict[background_intensity['label'][i]] = background_intensity['intensity_mean'][i]
-    return background_dict
+    return background_intensity['intensity_mean'][0]
 
 def get_intensity_properties(
     segmentation_mask,
     intensity_data,
-    min_dist: int,
-    max_dist: int,
+    expansion_dist: int,
     bbox: bool = True,
     intensity_mean: bool = False,
     intensity_min: bool = False,
     intensity_max: bool = False,
     show_intensity_std: bool = False,
+    show_background_mean: bool = False,
 ) -> dict:
     info, extra_props = ['label'], []
     if bbox: info.append('bbox')
@@ -172,14 +179,16 @@ def get_intensity_properties(
     background_intensity = get_background_intensity(
         segmentation = segmentation_mask,
         intensity_data = intensity_data,
-        min_dist = min_dist,
-        max_dist = max_dist,
+        expansion_dist = expansion_dist,
     )
-    for i in range(len(properties['label'])):
-        if background_intensity.get(properties['label'][i]):
-            if intensity_mean: properties['intensity_mean'][i] -= background_intensity[properties['label'][i]]
-            if intensity_min: properties['intensity_min'][i] -= background_intensity[properties['label'][i]]
-            if intensity_max: properties['intensity_max'][i] -= background_intensity[properties['label'][i]]
+    if intensity_mean:
+        properties['intensity_mean'] = np.subtract(properties['intensity_mean'], background_intensity)
+    if intensity_min:
+        properties['intensity_min'] = np.subtract(properties['intensity_min'], background_intensity)
+    if intensity_max:
+        properties['intensity_max'] = np.subtract(properties['intensity_max'], background_intensity)
+    if show_background_mean:
+        properties['background_intensity_mean'] = np.full_like(properties['label'], background_intensity)
     return properties
 
 @magic_factory(
@@ -204,23 +213,14 @@ def calculate_intensity(
     viewer: Viewer,
     seg_layer: "napari.layers.Labels",
     intensity_image: "napari.layers.Image",
-    show_background_areas: bool = True,
-    min_dist: int = 5,
-    max_dist: int = 10,
+    expansion_dist: int = 10,
 ) -> None:
-    if min_dist >=  max_dist:
-        show_warning("Minimum distance is greater or equal to maximum distance")
-        return None
     intensity = get_intensity_properties(
         segmentation_mask = seg_layer.data,
         intensity_data = intensity_image.data,
-        min_dist = min_dist,
-        max_dist = max_dist,
+        expansion_dist = expansion_dist,
         intensity_mean = True,
     )
-    if show_background_areas and viewer != None:
-        background = np.subtract(expand_labels(seg_layer.data, max_dist), expand_labels(seg_layer.data, min_dist))
-        viewer.add_labels(background, name="Intensity background")
     create_label_layer(viewer, "Intensity Labels", intensity, True)
     return
 
@@ -300,8 +300,7 @@ def full_analysis(
     file_name: str,
     model: str,
     diameter: int,
-    min_dist: int = 5,
-    max_dist: int = 10,
+    expansion_dist: int = 10,
 ) -> None:
     # Hiding all irrelevant layers to ensure screenshot shows correct information.
     for layer in viewer.layers:
@@ -320,13 +319,13 @@ def full_analysis(
     intensity_properties = get_intensity_properties(
         segmentation_mask = segmentation_mask[0],
         intensity_data = intensity_image.data,
-        min_dist = min_dist,
-        max_dist = max_dist,
+        expansion_dist = expansion_dist,
         bbox = False, 
         intensity_mean = True,
         intensity_min = True,
         intensity_max = True,
         show_intensity_std = True,
+        show_background_mean = True,
     )
     for key in intensity_properties.keys():
         if key not in properties.keys():
