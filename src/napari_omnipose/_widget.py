@@ -20,10 +20,10 @@ import napari
 
 # extra region props
 def intensity_std(
-    mask,
-    intensity
+    segmentation_mask: np.ndarray,
+    intensity_data: np.ndarray,
 ) -> np.ndarray:
-    return np.std(intensity[mask])
+    return np.std(intensity_data[segmentation_mask])
 
 def make_bounding_box(
     coords,
@@ -48,9 +48,9 @@ def make_bounding_box(
 # Adds a new label layer to the view, consisting of all the information in properties
 def create_label_layer(
     viewer: Viewer,
-    layer_name: str,
     properties: dict,
-    show_bounding_boxes: bool,
+    layer_name: str = "New Layer",
+    show_bounding_boxes: bool = False,
 ) -> None:
     boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
     labelText = ["{label}"] if 'label' in properties else []
@@ -109,7 +109,7 @@ def get_segmentation_mask(
 
 # Returns a dictionary containing the information below
 def get_properties(
-    segmentation_mask,
+    segmentation_mask: np.ndarray,
     bounding_box: bool = False,
     count: bool = False,
     area: bool = False,
@@ -130,7 +130,7 @@ def get_properties(
 
 def add_labelling(
     viewer: Viewer,
-    segmentation_mask,
+    segmentation_mask: np.ndarray,
     cell_count: bool = False,
     bounding_box: bool = False,
     display_area: bool = False,
@@ -141,12 +141,17 @@ def add_labelling(
         count = cell_count,
         area = display_area,
     )
-    create_label_layer(viewer, "Segmentation Labels", properties, bounding_box)
+    create_label_layer(
+        viewer = viewer,
+        properties = properties,
+        layer_name = "Segmentation Labels",
+        show_bounding_boxes = bounding_box,
+    )
     return
 
 def get_background_intensity(
-    segmentation,
-    intensity_data,
+    segmentation: np.ndarray,
+    intensity_data: np.ndarray, 
     expansion_dist: int = 10,
 ) -> int:
     background = expand_labels(segmentation, expansion_dist)
@@ -234,7 +239,12 @@ def calculate_intensity(
         expansion_dist = expansion_dist,
         intensity_mean = True,
     )
-    create_label_layer(viewer, "Intensity Labels", intensity, True)
+    create_label_layer(
+        viewer = viewer,
+        properties = intensity,
+        layer_name = "Intensity Labels",
+        show_bounding_boxes = True
+    )
     return
 
 @magic_factory(
@@ -270,7 +280,13 @@ def label_segmentation(
     if seg_layer == None:
         show_warning("No label layer selected.")
         return None
-    add_labelling(viewer, seg_layer.data, show_cell_count, show_bounding_box, show_area)
+    add_labelling(
+        viewer = viewer, 
+        segmentation_mask = seg_layer.data,
+        cell_count = show_cell_count, 
+        bounding_box = show_bounding_box,
+        display_area = show_area
+    )
     return None
 
 
@@ -305,7 +321,13 @@ def segment_image(
         use_gpu = use_gpu)
     viewer.add_labels(masks, name='Segmentation')
     if show_bounding_box or show_cell_count or show_area:
-        add_labelling(viewer, masks[0], show_bounding_box, show_cell_count, show_area)
+        add_labelling(
+            viewer = viewer,
+            segmentation_mask = masks[0],
+            cell_count = show_cell_count,
+            bounding_box = show_bounding_box,
+            display_area = show_area
+        )
     return
 
 @magic_factory(
@@ -356,7 +378,12 @@ def full_analysis(
             use_gpu = use_gpu
         )
         viewer.add_labels(segmentation_mask, name='Segmentation Mask')
-    add_labelling(viewer, segmentation_mask[0], True, True, False)
+    add_labelling(
+        viewer = viewer,
+        segmentation_mask = segmentation_mask[0],
+        cell_count = True,
+        bounding_box = True
+    )
     properties = get_properties(
         segmentation_mask = segmentation_mask[0],
         count = True,
