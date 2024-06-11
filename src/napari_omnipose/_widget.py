@@ -80,10 +80,17 @@ def create_label_layer(
 def get_segmentation_mask(
     img_data: "napari.types.ImageData",
     model: str = 'bact_phase_omni',
+    custom_model: str = None,
     diameter: int = 25,
     use_gpu: bool = False
 ) -> "napari.types.LabelsData":
-    masks, _, _ = models.CellposeModel(gpu=use_gpu, model_type=model).eval(
+    print("CUstom model")
+    print(custom_model)
+    if custom_model != None:
+        model = models.CellposeModel(gpu=use_gpu, pretrained_model=custom_model)
+    else:
+        model = models.CellposeModel(gpu=use_gpu, model_type=model)
+    masks, _, _ = model.eval(
         [img_data],
         diameter=diameter,
         channels=[1,2],
@@ -260,7 +267,9 @@ def label_segmentation(
 
 
 @magic_factory(
+    use_gpu = dict(widget_type="CheckBox", label = 'Use GPU', value=False),
     model = dict(widget_type='ComboBox', label='Model', choices=['bact_phase_omni', 'bact_fluor_omni', 'nuclei', 'cyto', 'cyto2'], value='bact_phase_omni'),
+    custom_model = dict(widget_type='FileEdit', mode='r', label='Custom Model', filter=None, value=None),
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
     show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
     show_cell_count = dict(widget_type="CheckBox", text="Show Cell Count", value=False),
@@ -271,15 +280,22 @@ def segment_image(
     img_layer: "napari.layers.Image",
     use_gpu: bool,
     model: str,
-    diameter: int,
-    show_bounding_box: bool,
-    show_cell_count: bool,
-    show_area: bool,
+    custom_model = None,
+    diameter: int = 25,
+    show_bounding_box: bool = False,
+    show_cell_count: bool = False,
+    show_area: bool = False,
 ) -> None:
     if img_layer == None:
         show_warning("No image layer selected.")
         return None
-    masks = get_segmentation_mask(img_layer.data, model, diameter, use_gpu)
+    if custom_model != None: custom_model = str(custom_model)
+    masks = get_segmentation_mask(
+        img_data = img_layer.data,
+        model = model,
+        custom_model = custom_model,
+        diameter = diameter,
+        use_gpu = use_gpu)
     viewer.add_labels(masks, name='Segmentation')
     if show_bounding_box or show_cell_count or show_area:
         add_labelling(viewer, masks[0], show_bounding_box, show_cell_count, show_area)
@@ -290,7 +306,7 @@ def segment_image(
     file_name = dict(value="ImageAnalysis"),
     model = dict(widget_type='ComboBox', label='Model', choices=['bact_phase_omni', 'bact_fluor_omni', 'nuclei', 'cyto', 'cyto2'], value='bact_phase_omni'),
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
-    expansion_dist = dict(label="Background intensity expansion"),
+    expansion_dist = dict(label="Intensity cell expansion"),
     use_gpu = dict(label="Use GPU for segmentation"),
 )
 def full_analysis(
@@ -356,7 +372,6 @@ def full_analysis(
     row_names = np.array([key for key in properties.keys()])
     prop_data = np.array([properties[key] for key in properties.keys()])
     output = np.append([row_names], np.transpose(prop_data), axis=0)
-
     # Writing output of the image analysis to a csv file
     np.savetxt(str(save_directory)+'/'+file_name+'.csv', output, delimiter=",", fmt='%s')
     # Saving screenshot image of viewer
