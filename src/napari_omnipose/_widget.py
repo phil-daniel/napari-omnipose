@@ -80,21 +80,29 @@ def create_label_layer(
 def get_segmentation_mask(
     img_data: "napari.types.ImageData",
     model: str = 'bact_phase_omni',
-    custom_model: str = None,
+    custom_model = None,
     diameter: int = 25,
     use_gpu: bool = False
 ) -> "napari.types.LabelsData":
-    print("CUstom model")
-    print(custom_model)
+
     if custom_model != None:
-        model = models.CellposeModel(gpu=use_gpu, pretrained_model=custom_model)
+        model = models.CellposeModel(
+            gpu = use_gpu,
+            pretrained_model = str(custom_model),
+            nchan = 2,
+            nclasses = 3,
+            dim = 2
+        )
     else:
-        model = models.CellposeModel(gpu=use_gpu, model_type=model)
+        model = models.CellposeModel(
+            gpu=use_gpu,
+            model_type=model
+        )
     masks, _, _ = model.eval(
         [img_data],
         diameter=diameter,
-        channels=[1,2],
-        omni=True
+        channels=[0,0],
+        omni=True,
     )
     show_info(str(np.max(masks[0])) + " objects identified.")
     return masks
@@ -289,7 +297,6 @@ def segment_image(
     if img_layer == None:
         show_warning("No image layer selected.")
         return None
-    if custom_model != None: custom_model = str(custom_model)
     masks = get_segmentation_mask(
         img_data = img_layer.data,
         model = model,
@@ -305,6 +312,7 @@ def segment_image(
     save_directory = dict(widget_type='FileEdit', mode='d', label='Save to Directory', value="~/"),
     file_name = dict(value="ImageAnalysis"),
     model = dict(widget_type='ComboBox', label='Model', choices=['bact_phase_omni', 'bact_fluor_omni', 'nuclei', 'cyto', 'cyto2'], value='bact_phase_omni'),
+    custom_model = dict(widget_type='FileEdit', mode='r', label='Custom Model', filter=None, value=None),
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
     expansion_dist = dict(label="Intensity cell expansion"),
     use_gpu = dict(label="Use GPU for segmentation"),
@@ -317,6 +325,7 @@ def full_analysis(
     file_name: str = "ImageAnalysis",
     use_gpu: bool = False,
     model: str = "bact_phase_omni",
+    custom_model = None,
     existing_segmentation: "napari.layers.Labels" = None,
     diameter: int = 25,
     expansion_dist: int = 10,
@@ -342,6 +351,7 @@ def full_analysis(
         segmentation_mask = get_segmentation_mask(
             img_data = image.data,
             model = model,
+            custom_model = custom_model,
             diameter = diameter,
             use_gpu = use_gpu
         )
