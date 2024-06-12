@@ -4,7 +4,7 @@ from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.measure import regionprops_table
-from skimage.segmentation import expand_labels
+from skimage.segmentation import expand_labels, find_boundaries
 from skimage.io import imsave
 from cellpose_omni import models
 
@@ -20,10 +20,10 @@ import napari
 
 # extra region props
 def intensity_std(
-    mask,
-    intensity
+    segmentation_mask: np.ndarray,
+    intensity_data: np.ndarray,
 ) -> np.ndarray:
-    return np.std(intensity[mask])
+    return np.std(intensity_data[segmentation_mask])
 
 def make_bounding_box(
     coords,
@@ -48,9 +48,9 @@ def make_bounding_box(
 # Adds a new label layer to the view, consisting of all the information in properties
 def create_label_layer(
     viewer: Viewer,
-    layer_name: str,
     properties: dict,
-    show_bounding_boxes: bool,
+    layer_name: str = "New Layer",
+    show_bounding_boxes: bool = False,
 ) -> None:
     boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
     labelText = ["{label}"] if 'label' in properties else []
@@ -81,8 +81,10 @@ def get_segmentation_mask(
     img_data: "napari.types.ImageData",
     model: str = 'bact_phase_omni',
     custom_model = None,
+    custom_model_type: str = "Omnipose",
     diameter: int = 25,
-    use_gpu: bool = False
+    use_gpu: bool = False,
+    use_omni: bool = True,
 ) -> "napari.types.LabelsData":
 
     if custom_model != None:
@@ -90,26 +92,26 @@ def get_segmentation_mask(
             gpu = use_gpu,
             pretrained_model = str(custom_model),
             nchan = 2,
-            nclasses = 3,
+            nclasses = 3 if custom_model_type == "Omnipose" else 2,
             dim = 2
         )
     else:
         model = models.CellposeModel(
-            gpu=use_gpu,
-            model_type=model
+            gpu = use_gpu,
+            model_type = model
         )
     masks, _, _ = model.eval(
-        [img_data],
-        diameter=diameter,
-        channels=[0,0],
-        omni=True,
+        x = [img_data],
+        diameter = diameter,
+        channels = [0,0],
+        omni = use_omni,
     )
     show_info(str(np.max(masks[0])) + " objects identified.")
     return masks
 
 # Returns a dictionary containing the information below
 def get_properties(
-    segmentation_mask,
+    segmentation_mask: np.ndarray,
     bounding_box: bool = False,
     count: bool = False,
     area: bool = False,
@@ -130,7 +132,7 @@ def get_properties(
 
 def add_labelling(
     viewer: Viewer,
-    segmentation_mask,
+    segmentation_mask: np.ndarray,
     cell_count: bool = False,
     bounding_box: bool = False,
     display_area: bool = False,
@@ -141,12 +143,17 @@ def add_labelling(
         count = cell_count,
         area = display_area,
     )
-    create_label_layer(viewer, "Segmentation Labels", properties, bounding_box)
+    create_label_layer(
+        viewer = viewer,
+        properties = properties,
+        layer_name = "Segmentation Labels",
+        show_bounding_boxes = bounding_box,
+    )
     return
 
 def get_background_intensity(
-    segmentation,
-    intensity_data,
+    segmentation: np.ndarray,
+    intensity_data: np.ndarray, 
     expansion_dist: int = 10,
 ) -> int:
     background = expand_labels(segmentation, expansion_dist)
@@ -207,18 +214,22 @@ def get_intensity_properties(
 @magic_factory(
 )
 def measure_masks(
+    viewer: Viewer,
     mask: "napari.layers.Labels",
-) -> "napari.layers.Labels":
-    '''properties = regionprops_table(
-        mask.data,
-        properties = {'bbox'}
-    )
-    boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
-    for i, x in enumerate(boxes):
-        items = np.where(mask == i+1)
-        # looking for i+1'''
-    shrink = expand_labels(mask.data, -1)
-    return napari.layers.Labels(shrink)
+) -> None:
+    outlines = find_boundaries(label_img = mask.data, mode = "inner")
+    outlines = np.multiply(outlines, mask.data)
+    grouped_outlines = dict()
+    for i in range(1, np.max(outlines)+1):
+        positions = np.nonzero(outlines == i)
+        grouped_outlines[i] = np.transpose(positions)
+    print(grouped_outlines)
+    #nonzero_vals = np.nonzero(boundaries)
+    #corresponding_vals = boundaries[nonzero_vals]
+    viewer.add_labels([outlines], name='Outlines')
+    #np.nonzero
+
+    return
 
 @magic_factory(
 )
@@ -234,7 +245,12 @@ def calculate_intensity(
         expansion_dist = expansion_dist,
         intensity_mean = True,
     )
-    create_label_layer(viewer, "Intensity Labels", intensity, True)
+    create_label_layer(
+        viewer = viewer,
+        properties = intensity,
+        layer_name = "Intensity Labels",
+        show_bounding_boxes = True
+    )
     return
 
 @magic_factory(
@@ -270,7 +286,13 @@ def label_segmentation(
     if seg_layer == None:
         show_warning("No label layer selected.")
         return None
-    add_labelling(viewer, seg_layer.data, show_cell_count, show_bounding_box, show_area)
+    add_labelling(
+        viewer = viewer, 
+        segmentation_mask = seg_layer.data,
+        cell_count = show_cell_count, 
+        bounding_box = show_bounding_box,
+        display_area = show_area
+    )
     return None
 
 
@@ -278,10 +300,12 @@ def label_segmentation(
     use_gpu = dict(widget_type="CheckBox", label = 'Use GPU', value=False),
     model = dict(widget_type='ComboBox', label='Model', choices=['bact_phase_omni', 'bact_fluor_omni', 'nuclei', 'cyto', 'cyto2'], value='bact_phase_omni'),
     custom_model = dict(widget_type='FileEdit', mode='r', label='Custom Model', filter=None, value=None),
+    custom_model_type = dict(widget_type='ComboBox', label='Custom Model Type', choices=['Omnipose', 'Cellpose'], value='Omnipose'),
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
     show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
     show_cell_count = dict(widget_type="CheckBox", text="Show Cell Count", value=False),
     show_area = dict(widget_type="CheckBox", text="Show Cell Area", value=False),
+    use_omni = dict(widget_type="CheckBox", text="Use Omni", value=True),
 )
 def segment_image(
     viewer: Viewer,
@@ -289,10 +313,12 @@ def segment_image(
     use_gpu: bool,
     model: str,
     custom_model = None,
+    custom_model_type: str = "Omnipose",
     diameter: int = 25,
     show_bounding_box: bool = False,
     show_cell_count: bool = False,
     show_area: bool = False,
+    use_omni: bool = True,
 ) -> None:
     if img_layer == None:
         show_warning("No image layer selected.")
@@ -301,11 +327,20 @@ def segment_image(
         img_data = img_layer.data,
         model = model,
         custom_model = custom_model,
+        custom_model_type = custom_model_type,
         diameter = diameter,
-        use_gpu = use_gpu)
+        use_gpu = use_gpu,
+        use_omni = use_omni,
+    )
     viewer.add_labels(masks, name='Segmentation')
     if show_bounding_box or show_cell_count or show_area:
-        add_labelling(viewer, masks[0], show_bounding_box, show_cell_count, show_area)
+        add_labelling(
+            viewer = viewer,
+            segmentation_mask = masks[0],
+            cell_count = show_cell_count,
+            bounding_box = show_bounding_box,
+            display_area = show_area
+        )
     return
 
 @magic_factory(
@@ -313,6 +348,7 @@ def segment_image(
     file_name = dict(value="ImageAnalysis"),
     model = dict(widget_type='ComboBox', label='Model', choices=['bact_phase_omni', 'bact_fluor_omni', 'nuclei', 'cyto', 'cyto2'], value='bact_phase_omni'),
     custom_model = dict(widget_type='FileEdit', mode='r', label='Custom Model', filter=None, value=None),
+    custom_model_type = dict(widget_type='ComboBox', label='Custom Model Type', choices=['Omnipose', 'Cellpose'], value='Omnipose'),
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
     expansion_dist = dict(label="Intensity cell expansion"),
     use_gpu = dict(label="Use GPU for segmentation"),
@@ -326,6 +362,7 @@ def full_analysis(
     use_gpu: bool = False,
     model: str = "bact_phase_omni",
     custom_model = None,
+    custom_model_type: str = "Omnipose",
     existing_segmentation: "napari.layers.Labels" = None,
     diameter: int = 25,
     expansion_dist: int = 10,
@@ -352,11 +389,17 @@ def full_analysis(
             img_data = image.data,
             model = model,
             custom_model = custom_model,
+            custom_model_type = custom_model_type,
             diameter = diameter,
             use_gpu = use_gpu
         )
         viewer.add_labels(segmentation_mask, name='Segmentation Mask')
-    add_labelling(viewer, segmentation_mask[0], True, True, False)
+    add_labelling(
+        viewer = viewer,
+        segmentation_mask = segmentation_mask[0],
+        cell_count = True,
+        bounding_box = True
+    )
     properties = get_properties(
         segmentation_mask = segmentation_mask[0],
         count = True,
