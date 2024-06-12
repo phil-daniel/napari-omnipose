@@ -4,7 +4,7 @@ from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.measure import regionprops_table
-from skimage.segmentation import expand_labels
+from skimage.segmentation import expand_labels, find_boundaries
 from skimage.io import imsave
 from cellpose_omni import models
 
@@ -82,7 +82,8 @@ def get_segmentation_mask(
     model: str = 'bact_phase_omni',
     custom_model = None,
     diameter: int = 25,
-    use_gpu: bool = False
+    use_gpu: bool = False,
+    use_omni: bool = True,
 ) -> "napari.types.LabelsData":
 
     if custom_model != None:
@@ -95,14 +96,14 @@ def get_segmentation_mask(
         )
     else:
         model = models.CellposeModel(
-            gpu=use_gpu,
-            model_type=model
+            gpu = use_gpu,
+            model_type = model
         )
     masks, _, _ = model.eval(
-        [img_data],
-        diameter=diameter,
-        channels=[0,0],
-        omni=True,
+        x = [img_data],
+        diameter = diameter,
+        channels = [0,0],
+        omni = use_omni,
     )
     show_info(str(np.max(masks[0])) + " objects identified.")
     return masks
@@ -212,18 +213,22 @@ def get_intensity_properties(
 @magic_factory(
 )
 def measure_masks(
+    viewer: Viewer,
     mask: "napari.layers.Labels",
-) -> "napari.layers.Labels":
-    '''properties = regionprops_table(
-        mask.data,
-        properties = {'bbox'}
-    )
-    boxes = make_bounding_box([properties[f'bbox-{i}'] for i in range(4)])
-    for i, x in enumerate(boxes):
-        items = np.where(mask == i+1)
-        # looking for i+1'''
-    shrink = expand_labels(mask.data, -1)
-    return napari.layers.Labels(shrink)
+) -> None:
+    outlines = find_boundaries(label_img = mask.data, mode = "inner")
+    outlines = np.multiply(outlines, mask.data)
+    grouped_outlines = dict()
+    for i in range(1, np.max(outlines)+1):
+        positions = np.nonzero(outlines == i)
+        grouped_outlines[i] = np.transpose(positions)
+    print(grouped_outlines)
+    #nonzero_vals = np.nonzero(boundaries)
+    #corresponding_vals = boundaries[nonzero_vals]
+    viewer.add_labels([outlines], name='Outlines')
+    #np.nonzero
+
+    return
 
 @magic_factory(
 )
@@ -298,6 +303,7 @@ def label_segmentation(
     show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
     show_cell_count = dict(widget_type="CheckBox", text="Show Cell Count", value=False),
     show_area = dict(widget_type="CheckBox", text="Show Cell Area", value=False),
+    use_omni = dict(widget_type="CheckBox", text="Use Omni", value=True),
 )
 def segment_image(
     viewer: Viewer,
@@ -309,6 +315,7 @@ def segment_image(
     show_bounding_box: bool = False,
     show_cell_count: bool = False,
     show_area: bool = False,
+    use_omni: bool = True,
 ) -> None:
     if img_layer == None:
         show_warning("No image layer selected.")
@@ -318,7 +325,9 @@ def segment_image(
         model = model,
         custom_model = custom_model,
         diameter = diameter,
-        use_gpu = use_gpu)
+        use_gpu = use_gpu,
+        use_omni = use_omni,
+    )
     viewer.add_labels(masks, name='Segmentation')
     if show_bounding_box or show_cell_count or show_area:
         add_labelling(
