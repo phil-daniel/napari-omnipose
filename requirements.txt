@@ -1,4 +1,7 @@
 napari
 cellpose
+cellpose_omni
+skimage
 numpy
 magicgui
+qtpy
