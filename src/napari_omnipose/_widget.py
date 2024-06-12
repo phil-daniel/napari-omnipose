@@ -81,6 +81,7 @@ def get_segmentation_mask(
     img_data: "napari.types.ImageData",
     model: str = 'bact_phase_omni',
     custom_model = None,
+    custom_model_type: str = "Omnipose",
     diameter: int = 25,
     use_gpu: bool = False,
     use_omni: bool = True,
@@ -91,7 +92,7 @@ def get_segmentation_mask(
             gpu = use_gpu,
             pretrained_model = str(custom_model),
             nchan = 2,
-            nclasses = 3,
+            nclasses = 3 if custom_model_type == "Omnipose" else 2,
             dim = 2
         )
     else:
@@ -299,6 +300,7 @@ def label_segmentation(
     use_gpu = dict(widget_type="CheckBox", label = 'Use GPU', value=False),
     model = dict(widget_type='ComboBox', label='Model', choices=['bact_phase_omni', 'bact_fluor_omni', 'nuclei', 'cyto', 'cyto2'], value='bact_phase_omni'),
     custom_model = dict(widget_type='FileEdit', mode='r', label='Custom Model', filter=None, value=None),
+    custom_model_type = dict(widget_type='ComboBox', label='Custom Model Type', choices=['Omnipose', 'Cellpose'], value='Omnipose'),
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
     show_bounding_box = dict(widget_type="CheckBox", text="Show bounding boxes", value= False),
     show_cell_count = dict(widget_type="CheckBox", text="Show Cell Count", value=False),
@@ -311,6 +313,7 @@ def segment_image(
     use_gpu: bool,
     model: str,
     custom_model = None,
+    custom_model_type: str = "Omnipose",
     diameter: int = 25,
     show_bounding_box: bool = False,
     show_cell_count: bool = False,
@@ -324,6 +327,7 @@ def segment_image(
         img_data = img_layer.data,
         model = model,
         custom_model = custom_model,
+        custom_model_type = custom_model_type,
         diameter = diameter,
         use_gpu = use_gpu,
         use_omni = use_omni,
@@ -344,6 +348,7 @@ def segment_image(
     file_name = dict(value="ImageAnalysis"),
     model = dict(widget_type='ComboBox', label='Model', choices=['bact_phase_omni', 'bact_fluor_omni', 'nuclei', 'cyto', 'cyto2'], value='bact_phase_omni'),
     custom_model = dict(widget_type='FileEdit', mode='r', label='Custom Model', filter=None, value=None),
+    custom_model_type = dict(widget_type='ComboBox', label='Custom Model Type', choices=['Omnipose', 'Cellpose'], value='Omnipose'),
     diameter = dict(widget_type="IntSlider", label="Diameter", value="25", min=0, max=100),
     expansion_dist = dict(label="Intensity cell expansion"),
     use_gpu = dict(label="Use GPU for segmentation"),
@@ -357,6 +362,7 @@ def full_analysis(
     use_gpu: bool = False,
     model: str = "bact_phase_omni",
     custom_model = None,
+    custom_model_type: str = "Omnipose",
     existing_segmentation: "napari.layers.Labels" = None,
     diameter: int = 25,
     expansion_dist: int = 10,
@@ -383,6 +389,7 @@ def full_analysis(
             img_data = image.data,
             model = model,
             custom_model = custom_model,
+            custom_model_type = custom_model_type,
             diameter = diameter,
             use_gpu = use_gpu
         )
