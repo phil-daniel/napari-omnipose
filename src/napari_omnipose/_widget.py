@@ -4,7 +4,7 @@ from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
 from skimage.measure import regionprops_table
-from skimage.segmentation import expand_labels, find_boundaries
+from skimage.segmentation import expand_labels, find_boundaries, clear_border
 from skimage.io import imsave
 from cellpose_omni import models
 
@@ -26,23 +26,23 @@ def intensity_std(
     return np.std(intensity_data[segmentation_mask])
 
 def make_bounding_box(
-    coords,
+    coords: np.ndarray,
 ):
-    minr = coords[0]
-    minc = coords[1]
-    maxr = coords[2]
-    maxc = coords[3]
+    min_row = coords[0]
+    min_column = coords[1]
+    max_row = coords[2]
+    max_column = coords[3]
 
-    box = np.array(
+    bounding_box_coords = np.array(
         [
-            [minr, minc],
-            [maxr, minc],
-            [maxr, maxc],
-            [minr, maxc]
+            [min_row, min_column],
+            [max_row, min_column],
+            [max_row, max_column],
+            [min_row, max_column]
         ]
     )
-    box = np.moveaxis(box, 2, 0)
-    return box
+    bounding_box_coords = np.moveaxis(bounding_box_coords, 2, 0)
+    return bounding_box_coords
 
 
 # Adds a new label layer to the view, consisting of all the information in properties
@@ -100,14 +100,15 @@ def get_segmentation_mask(
             gpu = use_gpu,
             model_type = model
         )
-    masks, _, _ = model.eval(
+    mask, _, _ = model.eval(
         x = [img_data],
         diameter = diameter,
         channels = [0,0],
         omni = use_omni,
     )
-    show_info(str(np.max(masks[0])) + " objects identified.")
-    return masks
+    mask[0] = clear_border(mask[0])
+    show_info(str(np.max(mask[0])) + " objects identified.")
+    return mask
 
 # Returns a dictionary containing the information below
 def get_properties(
@@ -219,11 +220,25 @@ def measure_masks(
 ) -> None:
     outlines = find_boundaries(label_img = mask.data, mode = "inner")
     outlines = np.multiply(outlines, mask.data)
-    grouped_outlines = dict()
     for i in range(1, np.max(outlines)+1):
         positions = np.nonzero(outlines == i)
-        grouped_outlines[i] = np.transpose(positions)
-    print(grouped_outlines)
+        #print("Old one")
+        #print(np.transpose(positions))
+        positions = np.sort(np.transpose(positions), axis=0)
+        #print("New one")
+        #print(positions)
+        
+        # todo
+        # check if it on the borders and ignore if so
+
+        cx, cy = np.mean(positions, axis=0)
+        x,y = np.transpose(positions)
+        angles = np.arctan2(x-cx, y-cy)
+        indices = np.argsort(-angles)
+        print("New")
+        print(positions[indices])
+
+
     #nonzero_vals = np.nonzero(boundaries)
     #corresponding_vals = boundaries[nonzero_vals]
     viewer.add_labels([outlines], name='Outlines')
